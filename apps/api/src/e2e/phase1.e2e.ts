@@ -83,7 +83,7 @@ describe.skipIf(!DB_URL)("e2e: auth + projects + изоляция (Фаза 1)",
   });
 
   it("me: профиль по access-cookie", async () => {
-    const res = await api().get("/api/v1/auth/me");
+    const res = await api.get("/api/v1/auth/me");
     expect(res.status).toBe(200);
     expect(res.body.data.user.email).toBe("owner@example.com");
   });
@@ -95,13 +95,13 @@ describe.skipIf(!DB_URL)("e2e: auth + projects + изоляция (Фаза 1)",
   });
 
   it("создание проекта и участники", async () => {
-    const res = await api().post("/api/v1/projects").send({ name: "Проект A" });
+    const res = await api.post("/api/v1/projects").send({ name: "Проект A" });
     expect(res.status).toBe(201);
     projectId = res.body.data.project.id;
     expect(projectId).toBeTruthy();
 
     // Создаём оператора и добавляем в проект
-    const user = await api().post("/api/v1/users").send({
+    const user = await api.post("/api/v1/users").send({
       email: "operator@example.com",
       password: "password123",
       name: "Оператор",
@@ -109,7 +109,7 @@ describe.skipIf(!DB_URL)("e2e: auth + projects + изоляция (Фаза 1)",
     expect(user.status).toBe(201);
     const operatorId = user.body.data.user.id;
 
-    const members = await api()
+    const members = await api
       .post(`/api/v1/projects/${projectId}/members`)
       .send({ user_id: operatorId, project_role: "operator" });
     expect(members.status).toBe(201);
@@ -176,7 +176,7 @@ describe.skipIf(!DB_URL)("e2e: auth + projects + изоляция (Фаза 1)",
     const sess = fresh.status === 200 ? fresh : await request(app.getHttpServer()).post("/api/v1/auth/refresh").set("Cookie", cookies.join("; "));
     captureCookies(sess);
 
-    const put = await api().put("/api/v1/settings/ai_provider.api_key").send({
+    const put = await api.put("/api/v1/settings/ai_provider.api_key").send({
       value: "sk-live-super-secret",
       is_secret: true,
     });
@@ -187,7 +187,7 @@ describe.skipIf(!DB_URL)("e2e: auth + projects + изоляция (Фаза 1)",
     expect(JSON.stringify(rows[0].value)).not.toContain("sk-live-super-secret");
 
     // API маскирует секрет
-    const list = await api().get("/api/v1/settings");
+    const list = await api.get("/api/v1/settings");
     const stored = list.body.data.settings.find((s: { key: string }) => s.key === "ai_provider.api_key");
     expect(JSON.stringify(stored)).not.toContain("sk-live-super-secret");
     expect(stored.is_secret).toBe(true);
