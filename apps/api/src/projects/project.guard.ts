@@ -32,7 +32,9 @@ export class ProjectGuard implements CanActivate {
     if (!user) throw AppError.unauthorized();
 
     const projectId = (req.params.projectId ?? req.params.id) as string | undefined;
-    if (!projectId) throw AppError.internal();
+    // Коллекционные роуты (без :id) — авторизация внутри обработчиков
+    // (например, список проектов фильтруется accessibleProjectIds)
+    if (!projectId) return true;
 
     if (!canProject(user, permission, { projectId })) {
       throw AppError.forbiddenProject();

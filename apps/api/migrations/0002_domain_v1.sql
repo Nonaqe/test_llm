@@ -186,14 +186,16 @@ CREATE TABLE handoffs (
 );
 CREATE INDEX handoffs_queue_idx ON handoffs (status, created_at);
 
--- Аудит: append-only (записи только добавляются; docs/15 §5)
+-- Аудит: append-only (записи только добавляются; docs/15 §5).
+-- entity_id — text: идентификаторы сущностей неоднородны (uuid сущностей,
+-- строковые ключи настроек)
 CREATE TABLE events (
     id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     actor_type  text NOT NULL CHECK (actor_type IN ('user', 'system', 'visitor')),
     actor_id    uuid,
     action      text NOT NULL,
     entity_type text,
-    entity_id   uuid,
+    entity_id   text,
     payload     jsonb NOT NULL DEFAULT '{}',
     ip          text,
     created_at  timestamptz NOT NULL DEFAULT now()
