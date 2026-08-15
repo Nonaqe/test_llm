@@ -194,7 +194,6 @@ export class UniChatWidgetElement extends HTMLElement {
     try {
       const res = await this.api.init({
         key,
-        origin: window.location.origin,
         anon_id: anonId,
         attributes,
       });

@@ -25,12 +25,15 @@ export class WidgetController {
     };
   }
 
-  /** POST /widget/v1/init — publishable key + origin → visitor JWT + конфиг. */
+  /** POST /widget/v1/init — publishable key + заголовок Origin → visitor JWT + конфиг. */
   @Post("init")
   @HttpCode(200)
   async init(@Body() body: unknown, @Req() req: Request) {
     const input = InitSchema.parse(body);
-    return this.widget.init(input, req.ip ?? null);
+    const headerOrigin = Array.isArray(req.headers.origin)
+      ? req.headers.origin[0]
+      : req.headers.origin;
+    return this.widget.init(input, headerOrigin, req.ip ?? null);
   }
 
   @Post("conversations")

@@ -93,7 +93,7 @@ describe.skipIf(!DB_URL)("e2e: widget zone /widget/v1 (Фаза 2)", () => {
     const res = await request(app.getHttpServer())
       .post("/widget/v1/init")
       .set("Origin", GOOD_ORIGIN)
-      .send({ key: SITE_KEY, origin: GOOD_ORIGIN, anon_id: "anon-visitor-a-0001" });
+      .send({ key: SITE_KEY, anon_id: "anon-visitor-a-0001" });
     expect(res.status).toBe(200);
     expect(res.body.data.visitor_token).toBeTruthy();
     expect(res.body.data.widget.locale).toBe("ru");
@@ -106,7 +106,7 @@ describe.skipIf(!DB_URL)("e2e: widget zone /widget/v1 (Фаза 2)", () => {
     const res = await request(app.getHttpServer())
       .post("/widget/v1/init")
       .set("Origin", "https://evil.example")
-      .send({ key: SITE_KEY, origin: "https://evil.example", anon_id: "anon-visitor-x-0001" });
+      .send({ key: SITE_KEY, anon_id: "anon-visitor-x-0001" });
     expect(res.status).toBe(403);
     expect(res.body.error.code).toBe("INVALID_ORIGIN");
   });
@@ -115,12 +115,12 @@ describe.skipIf(!DB_URL)("e2e: widget zone /widget/v1 (Фаза 2)", () => {
     const bad = await request(app.getHttpServer())
       .post("/widget/v1/init")
       .set("Origin", GOOD_ORIGIN)
-      .send({ key: "pk_live_unknown_key_0", origin: GOOD_ORIGIN, anon_id: "anon-visitor-b-0001" });
+      .send({ key: "pk_live_unknown_key_0", anon_id: "anon-visitor-b-0001" });
     expect(bad.status).toBe(404);
 
     const noOrigin = await request(app.getHttpServer())
       .post("/widget/v1/init")
-      .send({ key: SITE_KEY, origin: GOOD_ORIGIN, anon_id: "anon-visitor-c-0001" });
+      .send({ key: SITE_KEY, anon_id: "anon-visitor-c-0001" });
     expect(noOrigin.status).toBe(403);
     expect(noOrigin.body.error.code).toBe("INVALID_ORIGIN");
   });
@@ -172,7 +172,7 @@ describe.skipIf(!DB_URL)("e2e: widget zone /widget/v1 (Фаза 2)", () => {
     const strangerInit = await request(app.getHttpServer())
       .post("/widget/v1/init")
       .set("Origin", GOOD_ORIGIN)
-      .send({ key: SITE_KEY, origin: GOOD_ORIGIN, anon_id: "anon-visitor-stranger-1" });
+      .send({ key: SITE_KEY, anon_id: "anon-visitor-stranger-1" });
     const strangerToken = strangerInit.body.data.visitor_token;
 
     const res = await request(app.getHttpServer())
@@ -231,9 +231,16 @@ describe.skipIf(!DB_URL)("e2e: widget zone /widget/v1 (Фаза 2)", () => {
     );
     await new Promise((r) => setTimeout(r, 800)); // ждём fake-AI
 
+    // Детерминированно: seq4 (fake-AI на сокет-сообщение), seq5 (оффлайн-посетитель),
+    // seq6 (fake-AI на него) — все добираются after_seq после reconnect
     const lastSeen = 3;
-    const missed = await pollMessages(lastSeen, 2); // visitor seq4 + assistant seq5
-    expect(missed.map((m: { seq: number }) => m.seq)).toEqual([4, 5]);
+    const missed = await pollMessages(lastSeen, 3);
+    expect(missed.map((m: { seq: number }) => m.seq)).toEqual([4, 5, 6]);
+    expect(missed.map((m: { role: string }) => m.role)).toEqual([
+      "assistant",
+      "visitor",
+      "assistant",
+    ]);
 
     socket.close();
   });
@@ -243,7 +250,7 @@ describe.skipIf(!DB_URL)("e2e: widget zone /widget/v1 (Фаза 2)", () => {
     const fresh = await request(app.getHttpServer())
       .post("/widget/v1/init")
       .set("Origin", GOOD_ORIGIN)
-      .send({ key: SITE_KEY, origin: GOOD_ORIGIN, anon_id: "anon-visitor-rl-00001" });
+      .send({ key: SITE_KEY, anon_id: "anon-visitor-rl-00001" });
     const token = fresh.body.data.visitor_token;
     const conv = await request(app.getHttpServer())
       .post("/widget/v1/conversations")

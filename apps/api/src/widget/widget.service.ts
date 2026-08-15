@@ -39,7 +39,6 @@ const FAKE_AI_DELAY_MS = 400;
 
 export const InitSchema = z.object({
   key: z.string().min(8).max(200),
-  origin: z.string().min(1).max(500),
   anon_id: z.string().min(8).max(100),
   attributes: z.record(z.string(), z.unknown()).optional(),
 });
@@ -66,6 +65,7 @@ export class WidgetService {
 
   async init(
     input: z.infer<typeof InitSchema>,
+    headerOrigin: string | undefined,
     ip: string | null,
   ): Promise<WidgetInitResponse> {
     const attempt = this.throttle.attempt(`w-init:${ip ?? "no-ip"}`, LIMITS.initPerMinute, 60);
@@ -74,11 +74,12 @@ export class WidgetService {
     const site = await this.sites.findByKey(input.key);
     if (!site || !site.is_active) throw AppError.notFound("Сайт");
 
-    if (!matchOrigin(site.allowed_origins, input.origin)) {
+    // Валидируется ЗАГОЛОВОК Origin (тело подделывается) — IR-017
+    if (!matchOrigin(site.allowed_origins, headerOrigin)) {
       await this.events.append({
         actorType: "system",
         action: "widget.init_invalid_origin",
-        payload: { site_id: site.id, origin: input.origin },
+        payload: { site_id: site.id, origin: headerOrigin ?? null },
         ip,
       });
       throw AppError.invalidOrigin();

@@ -16,10 +16,10 @@ export class WidgetApi {
 
   async init(params: {
     key: string;
-    origin: string;
     anon_id: string;
     attributes?: Record<string, unknown>;
   }): Promise<WidgetInitResponse> {
+    // Origin браузер отправляет заголовком автоматически (кросс-доменный fetch)
     return this.request<WidgetInitResponse>("POST", "/widget/v1/init", params);
   }
 
