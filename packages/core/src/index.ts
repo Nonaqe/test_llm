@@ -4,3 +4,9 @@
  */
 export * from "./conversation/state-machine";
 export * from "./rbac/rbac";
+export * from "./ai/provider";
+export * from "./ai/prompt-builder";
+export * from "./ai/structured-output";
+export * from "./ai/fake-provider";
+export * from "./rag/chunker";
+export * from "./rag/rrf";
