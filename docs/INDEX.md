@@ -115,6 +115,7 @@ related:
 | DOC-028 | 28_GLOSSARY.md | Глоссарий | draft | low | все |
 | DOC-029 | 29_AI_AGENT_RULES.md | Правила для ИИ-агентов | draft | high | ai-agent |
 | DOC-030 | 30_MVP_IMPLEMENTATION_PLAN.md | Технический план реализации MVP | draft | high | developer, architect |
+| DOC-031 | 31_IMPLEMENTATION_LOG.md | Журнал реализации: что сделано и почему | draft | high | developer, architect, ai-agent |
 
 Статусы: `draft` — черновик, `review` — на рецензии, `approved` — утверждён, `planned` — файл ещё не создан (расширение манифеста; паспорты файлов используют только draft/review/approved).
 
@@ -136,6 +137,7 @@ related:
 | Обновление установленной системы | DOC-020, DOC-016 |
 | Архитектура, добавление новой CMS/платформы | DOC-003, DOC-004, DOC-026 |
 | Планирование и реализация MVP | DOC-030, DOC-025 |
+| Что реализовано и почему так (журнал) | DOC-031 |
 
 ## Список файлов документации
 
@@ -174,7 +176,8 @@ docs/
 ├── 27_FAQ.md                    (DOC-027)
 ├── 28_GLOSSARY.md               (DOC-028)
 ├── 29_AI_AGENT_RULES.md         (DOC-029)
-└── 30_MVP_IMPLEMENTATION_PLAN.md (DOC-030)
+├── 30_MVP_IMPLEMENTATION_PLAN.md (DOC-030)
+└── 31_IMPLEMENTATION_LOG.md     (DOC-031)
 ```
 
 ## Примечания
