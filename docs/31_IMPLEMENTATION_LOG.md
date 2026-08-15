@@ -48,7 +48,7 @@ related:
 |---|---|---|---|
 | Ф0 Каркас монорепо | **done** (2026-08-15) | `81f5ea0` | CI зелёный: сборка всех пакетов, boundary-правила (проверены self-test'ом), 34 теста. Runtime-Docker пункты закрыты CI-эквивалентом (postgres-сервис) — см. «Отложено» D-1 |
 | Ф1 Домен, схема, auth | **done** (2026-08-15) | `b4c4500`, `5b1e026`, `998d82f`, `a10f4d2`, `333346c` | CI зелёный на `333346c`: миграции на чистой БД + идемпотентность; e2E (login→me→CRUD, изоляция 403, ротация refresh, lockout 429, секрет не в открытом виде в БД); 65 юнит-тестов |
-| Ф2 Виджет + публичный API + realtime | **done** (2026-08-15) | `5411cda` (+docs-коммит) | CI: e2e Фазы 2 (init/origin/404-изоляция/seq-порядок/after_seq/idempotency/socket+reconnect/rate-limit 429/handoff→WAITING_OPERATOR); бандл виджета 24.0 КБ gzip ≤ 60 (NFR-5); мобильный CSS — см. D-7 |
+| Ф2 Виджет + публичный API + realtime | **done** (2026-08-15) | `5411cda`, `b6a4196`, `75c45b8` | CI зелёный на `75c45b8`: e2e Фазы 2 (init/Origin-заголовок/404-изоляция/seq-порядок/after_seq/idempotency/socket+reconnect-кэтчап/rate-limit 429/handoff→WAITING_OPERATOR); бандл виджета 24.0 КБ gzip ≤ 60 (NFR-5); мобильный CSS — см. D-7 |
 | Ф3 AI + RAG | pending | — | — |
 | Ф4 Эскалация + операторы | pending | — | — |
 | Ф5 Admin Panel | pending | — | — |
