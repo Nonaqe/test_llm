@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@uni-chat/shared": ["packages/shared/src/index.ts"],
+      "@uni-chat/core": ["packages/core/src/index.ts"],
+      "@uni-chat/ui": ["packages/ui/src/index.ts"],
+      "@uni-chat/api": ["apps/api/src/main.ts"],
+      "@uni-chat/admin": ["apps/admin/src/main.tsx"],
+      "@uni-chat/widget": ["apps/widget/src/element.ts"]
+    }
+  }
+}

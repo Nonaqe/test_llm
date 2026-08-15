@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>UniChat widget — dev harness</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 2rem;
+      }
+      /* Ручная темизация сайта через CSS-переменные (docs/08_WIDGET.md §4, уровень 2) */
+      :root {
+        --uni-chat-accent: #b8860b;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Dev harness виджета</h1>
+    <p>Кнопка чата — внизу справа. Кастомизация — CSS-переменные выше.</p>
+    <script type="module" src="/src/element.ts" data-chat-key="pk_test_dev"></script>
+  </body>
+</html>
