@@ -121,13 +121,13 @@ Authorization: Bearer <visitor_token>
 | Auth | `POST /auth/login`, `POST /auth/logout`, `POST /auth/refresh`, `GET /auth/me` |
 | Проекты | `GET/POST/PATCH /projects`; `GET/POST/PATCH /projects/:id/members` |
 | Сайты | `GET/POST/PATCH /projects/:id/sites` (+ regen ключа: `POST /sites/:id/regen-key`) |
-| Ассистент | `GET/POST/PATCH /projects/:id/assistants`; `PUT /projects/:id/assistants/:aid/rules` |
+| Ассистент | `GET/PATCH /projects/:id/assistant` (персона, тон, retrieval_settings, safety_settings, widget_texts; реализовано в Ф3); rules — Ф4 |
 | Знания | `POST /projects/:id/knowledge/documents` (multipart), `POST /projects/:id/knowledge/urls`, `GET/POST/PATCH/DELETE /projects/:id/knowledge/faqs`, `POST /knowledge/documents/:id/reindex`, `DELETE /knowledge/documents/:id` |
 | Диалоги | `GET /projects/:id/conversations?state=&site=&cursor=`, `GET /conversations/:id`, `POST /conversations/:id/assign|close|reopen|return-to-ai`, `POST /conversations/:id/messages` |
 | Очередь | `GET /handoffs?status=pending` |
 | Аналитика | `GET /projects/:id/analytics/overview` |
 | Команда | `GET/POST /users` |
-| Настройки | `GET/PATCH /settings` (AI provider, SMTP, бэкапы) |
+| Настройки | `GET/PATCH /settings` (AI provider, SMTP, бэкапы); `POST /settings/ai-provider/check` — тест провайдера (Ф3) |
 
 ### 3.1 Пример: вход
 

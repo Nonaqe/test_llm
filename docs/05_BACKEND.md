@@ -155,6 +155,11 @@ UPDATE conversations SET last_seq = last_seq + 1 WHERE id = $1 RETURNING last_se
 | `timers` | waiting-timeout, inactivity-close, reopen-check | без ретраев | отложенные (delayed) джобы |
 | `maintenance` | backup, retention-cleanup | 1 + алерт | запуск по cron-расписанию |
 
+> **Реализация Фазы 3 (IR-024 в DOC-031):** до появления Redis в рантайме ingest
+> выполняется последовательной очередью (concurrency 1) внутри api-процесса —
+> интерфейс семантически совместим с планом BullMQ; перенос в worker при
+> `REDIS_URL` — Фаза 4/7 без изменения потребителей.
+
 Правила:
 
 - Джобы идемпотентны (jourId = идентификатор сущности + версия; повторный прогон безопасен).
