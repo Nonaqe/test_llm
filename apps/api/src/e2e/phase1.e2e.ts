@@ -18,9 +18,14 @@ describe.skipIf(!DB_URL)("e2e: auth + projects + изоляция (Фаза 1)",
   let cookies: string[] = [];
   let projectId = "";
 
-  const api = () => {
-    const req = request(app.getHttpServer());
-    return cookies.length ? req.set("Cookie", cookies.join("; ")) : req;
+  // supertest: .set доступен только после HTTP-глагола — оборачиваем глаголы
+  const withCookies = (req: request.Test): request.Test =>
+    cookies.length ? req.set("Cookie", cookies.join("; ")) : req;
+  const api = {
+    get: (url: string) => withCookies(request(app.getHttpServer()).get(url)),
+    post: (url: string) => withCookies(request(app.getHttpServer()).post(url)),
+    patch: (url: string) => withCookies(request(app.getHttpServer()).patch(url)),
+    put: (url: string) => withCookies(request(app.getHttpServer()).put(url)),
   };
   const captureCookies = (res: request.Response): void => {
     const set = res.headers["set-cookie"];
