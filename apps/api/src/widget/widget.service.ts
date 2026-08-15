@@ -18,8 +18,12 @@ import { AppError } from "../common/http";
 import { EventsRepo } from "../db/repositories";
 import { THROTTLE_STORE, type ThrottleStore } from "../auth/stores";
 import { WidgetGateway } from "../realtime/widget.gateway";
+import { ConversationEngineService } from "../conversations/conversation-engine.service";
 import { matchOrigin } from "./origin";
 import { signVisitorToken } from "./visitor-tokens";
+import { toMessageDto } from "./message-dto";
+
+export { toMessageDto };
 import {
   ConversationsRepo,
   HandoffsRepo,
@@ -34,8 +38,6 @@ const LIMITS = {
   conversationsPerHour: 5,
   messagesPerMinute: 10,
 } as const;
-
-const FAKE_AI_DELAY_MS = 400;
 
 export const InitSchema = z.object({
   key: z.string().min(8).max(200),
@@ -59,6 +61,7 @@ export class WidgetService {
     private readonly handoffs: HandoffsRepo,
     private readonly events: EventsRepo,
     private readonly gateway: WidgetGateway,
+    private readonly engine: ConversationEngineService,
     @Inject(THROTTLE_STORE) private readonly throttle: ThrottleStore,
     @Inject(ENV) private readonly env: Env,
   ) {}
@@ -195,7 +198,8 @@ export class WidgetService {
       ip,
     });
 
-    this.scheduleFakeAiReply(conversation.id, text);
+    // AI-ход: retrieval → гейт → LLM-стрим → structured output (docs/05 §3, Фаза 3)
+    void this.engine.onVisitorMessage(conversation, text);
     return toMessageDto(message);
   }
 
@@ -255,27 +259,6 @@ export class WidgetService {
     return { ok: true };
   }
 
-  /**
-   * ЗАГЛУШКА Фазы 2: эхо-ответ вместо AI. Заменяется настоящим
-   * Conversation Engine (retrieval + LLM + стриминг) в Фазе 3 — docs/30 §3.
-   */
-  private scheduleFakeAiReply(conversationId: string, echoOf: string): void {
-    setTimeout(() => {
-      void this.conversations
-        .appendMessage(
-          conversationId,
-          MessageRole.Assistant,
-          `[Фаза 2 · заглушка AI] Получено: «${echoOf.slice(0, 200)}». Настоящий AI-ответ с RAG и цитатами появится в Фазе 3 (docs/30_MVP_IMPLEMENTATION_PLAN.md).`,
-        )
-        .then((reply) => {
-          this.gateway.emitMessage(conversationId, toMessageDto(reply));
-        })
-        .catch(() => {
-          // диалог мог быть удалён — заглушка молча завершается
-        });
-    }, FAKE_AI_DELAY_MS);
-  }
-
   private widgetConfig(raw: Record<string, unknown>): WidgetConfig {
     const theme = (raw["theme"] as WidgetConfig["theme"] | undefined) ?? {};
     const texts = (raw["texts"] as { greeting?: string } | undefined) ?? {};
@@ -290,16 +273,7 @@ export class WidgetService {
   }
 }
 
-export function toMessageDto(row: WidgetMessageRow): WidgetMessageDto {
-  return {
-    id: row.id,
-    conversation_id: row.conversation_id,
-    seq: row.seq,
-    role: row.role as WidgetMessageDto["role"],
-    content: row.content,
-    created_at: new Date(row.created_at).toISOString(),
-  };
-}
+
 
 function toConversationDto(row: ConversationRow): WidgetConversationDto {
   return { id: row.id, state: row.state, last_seq: row.last_seq };

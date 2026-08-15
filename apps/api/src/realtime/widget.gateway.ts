@@ -77,6 +77,11 @@ export class WidgetGateway implements OnGatewayConnection {
     this.server.to(conversationRoom(conversationId)).emit("message", message);
   }
 
+  /** Стрим AI: токены не персистятся, финал приходит обычным message (docs/05 §6). */
+  emitAiToken(conversationId: string, token: string): void {
+    this.server.to(conversationRoom(conversationId)).emit("ai_token", { token });
+  }
+
   emitState(conversationId: string, state: ConversationState): void {
     this.server
       .to(conversationRoom(conversationId))

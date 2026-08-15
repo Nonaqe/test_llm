@@ -32,6 +32,8 @@ export interface WidgetMessageRow {
   role: string;
   content: string;
   created_at: Date;
+  citations?: unknown;
+  confidence?: number;
 }
 
 @Injectable()
@@ -131,6 +133,8 @@ export class ConversationsRepo {
     conversationId: string,
     role: MessageRole,
     content: string,
+    citations?: Array<{ chunk_id: string; score: number }>,
+    confidence?: number,
   ): Promise<WidgetMessageRow> {
     if (!this.db) throw new Error("DATABASE_URL не настроен");
     const client = await this.db.connect();
@@ -155,10 +159,17 @@ export class ConversationsRepo {
       }
 
       const { rows: msgRows } = await client.query(
-        `insert into messages (conversation_id, seq, role, content)
-         values ($1, $2, $3, $4)
-         returning id, conversation_id, seq, role, content, created_at`,
-        [conversationId, conv.last_seq, role, content],
+        `insert into messages (conversation_id, seq, role, content, citations, confidence)
+         values ($1, $2, $3, $4, $5::jsonb, $6)
+         returning id, conversation_id, seq, role, content, created_at, citations, confidence`,
+        [
+          conversationId,
+          conv.last_seq,
+          role,
+          content,
+          citations ? JSON.stringify(citations) : null,
+          confidence ?? null,
+        ],
       );
       await client.query("commit");
       return msgRows[0] as WidgetMessageRow;

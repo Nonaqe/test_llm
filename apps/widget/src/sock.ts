@@ -8,6 +8,7 @@ import type { WidgetMessageDto } from "@uni-chat/shared";
 export interface SocketHandlers {
   onMessage: (message: WidgetMessageDto) => void;
   onState: (payload: { conversation_id: string; state: string }) => void;
+  onAiToken: (payload: { token: string }) => void;
   onConnect: () => void;
   onDisconnect: () => void;
 }
@@ -22,6 +23,7 @@ export class WidgetSocket {
     });
     this.socket.on("message", handlers.onMessage);
     this.socket.on("conversation:state", handlers.onState);
+    this.socket.on("ai_token", handlers.onAiToken);
     this.socket.on("connect", handlers.onConnect);
     this.socket.on("disconnect", handlers.onDisconnect);
   }

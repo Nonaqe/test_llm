@@ -53,6 +53,8 @@ export class UniChatWidgetElement extends HTMLElement {
   private lastSeq = 0;
   private unread = 0;
   private booted = false;
+  /** Live-пузырь стриминга AI (ai_token); заменяется финальным message (docs/05 §6) */
+  private liveBubble: HTMLElement | null = null;
 
   // DOM-ссылки
   private refs: {
@@ -220,6 +222,7 @@ export class UniChatWidgetElement extends HTMLElement {
     this.socket = new WidgetSocket(this.resolveBaseUrl(), this.token, {
       onMessage: (m) => this.handleIncoming(m),
       onState: (p) => this.handleState(p.state),
+      onAiToken: (p) => this.handleAiToken(p.token),
       onConnect: () => {
         this.setDot(true);
         this.stopPolling();
@@ -280,8 +283,26 @@ export class UniChatWidgetElement extends HTMLElement {
         this.updateBadge();
       }
     }
-    this.renderMessages();
+    this.renderMessages(); // финальное сообщение заменяет live-пузырь
     emitGlobal("message", message);
+  }
+
+  /** Стрим AI: инкрементальный текст; рендер textContent-only (XSS по построению). */
+  private handleAiToken(token: string): void {
+    const refs = this.refs;
+    if (!refs) return;
+    refs.typing.classList.remove("visible");
+    if (!this.liveBubble || !this.liveBubble.isConnected) {
+      const row = document.createElement("div");
+      row.className = "row assistant";
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      row.appendChild(bubble);
+      refs.list.appendChild(row);
+      this.liveBubble = bubble;
+    }
+    this.liveBubble.textContent += token;
+    refs.list.scrollTop = refs.list.scrollHeight;
   }
 
   private handleState(state: string): void {
@@ -332,6 +353,7 @@ export class UniChatWidgetElement extends HTMLElement {
     const refs = this.refs;
     if (!refs) return;
     refs.list.textContent = "";
+    this.liveBubble = null; // список перестроен — live-пузырь более не валиден
     const sorted = [...this.messages.values()].sort((a, b) => a.seq - b.seq);
     for (const m of sorted) {
       const row = document.createElement("div");

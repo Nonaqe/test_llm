@@ -10,6 +10,11 @@ import { ProjectsModule } from "./projects/projects.module";
 import { SettingsModule } from "./settings/settings.module";
 import { UsersModule } from "./users/users.module";
 import { WidgetModule } from "./widget/widget.module";
+import { AiModule } from "./ai/ai.module";
+import { RagModule } from "./rag/rag.module";
+import { ConversationsModule } from "./conversations/conversations.module";
+import { KnowledgeModule } from "./knowledge/knowledge.module";
+import { AssistantsModule } from "./assistants/assistants.module";
 import { loadEnv } from "./config/env";
 
 const env = loadEnv();
@@ -43,6 +48,11 @@ const env = loadEnv();
     SettingsModule,
     UsersModule,
     WidgetModule,
+    AiModule,
+    RagModule,
+    ConversationsModule,
+    KnowledgeModule,
+    AssistantsModule,
   ],
 })
 export class AppModule {}

@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Param, Put, Req } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Put, Req } from "@nestjs/common";
 import { z } from "zod";
 import { canInstallation, Permission, type Principal } from "@uni-chat/core";
 import { AppError } from "../common/http";
 import { Auth, AuthedRequest, CurrentUser } from "../auth/jwt-auth.guard";
 import { EventsRepo } from "../db/repositories";
+import { AiProviderService } from "../ai/ai-provider.service";
 import { SettingsService } from "./settings.service";
 
 const PutSettingSchema = z.object({
@@ -17,6 +18,7 @@ export class SettingsController {
   constructor(
     private readonly settings: SettingsService,
     private readonly events: EventsRepo,
+    private readonly aiProviders: AiProviderService,
   ) {}
 
   /** GET /api/v1/settings — секреты маскируются. */
@@ -27,6 +29,16 @@ export class SettingsController {
       throw AppError.forbidden("Настройки установки доступны только администраторам");
     }
     return { settings: await this.settings.list() };
+  }
+
+  /** POST /api/v1/settings/ai-provider/check — «Проверить соединение» (docs/22 §3). */
+  @Post("ai-provider/check")
+  @Auth()
+  async checkProvider(@CurrentUser() user: Principal) {
+    if (!canInstallation(user, Permission.ManageInstallation)) {
+      throw AppError.forbidden("Настройки установки доступны только администраторам");
+    }
+    return this.aiProviders.check();
   }
 
   /** PUT /api/v1/settings/:key. */

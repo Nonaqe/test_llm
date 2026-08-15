@@ -112,6 +112,11 @@ export interface WidgetConfig {
   greeting: string;
 }
 
+export interface WidgetMessageCitation {
+  chunk_id: string;
+  score: number;
+}
+
 export interface WidgetMessageDto {
   id: string;
   conversation_id: string;
@@ -119,6 +124,10 @@ export interface WidgetMessageDto {
   role: "visitor" | "assistant" | "operator" | "system";
   content: string;
   created_at: string;
+  /** Цитаты источников AI-ответа (docs/11 §5) */
+  citations?: WidgetMessageCitation[];
+  /** Самооценка уверенности AI (docs/11 §4) */
+  confidence?: number;
 }
 
 export interface WidgetConversationDto {
@@ -150,4 +159,6 @@ export interface WidgetServerToClientEvents {
     conversation_id: string;
     state: ConversationState;
   }) => void;
+  /** Частичный токен стрима AI (не персистится; docs/07 §4.1) */
+  ai_token: (payload: { token: string }) => void;
 }
