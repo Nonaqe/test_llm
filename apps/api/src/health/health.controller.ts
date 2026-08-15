@@ -1,14 +1,15 @@
-/**
- * Health endpoints (docs/19_LOGGING_MONITORING.md §2).
- * /health — liveness (без зависимостей); /health/ready — readiness (БД-пинг подключается в Фазе 1).
- */
 import { Controller, Get, Inject } from "@nestjs/common";
+import type { Pool } from "pg";
 import type { HealthResponse, ReadinessResponse } from "@uni-chat/shared";
 import { ENV, type Env } from "../config/env";
+import { PG } from "../db/db.module";
 
 @Controller("health")
 export class HealthController {
-  constructor(@Inject(ENV) private readonly env: Env) {}
+  constructor(
+    @Inject(ENV) private readonly env: Env,
+    @Inject(PG) private readonly db: Pool | null,
+  ) {}
 
   @Get()
   liveness(): HealthResponse {
@@ -19,13 +20,17 @@ export class HealthController {
     };
   }
 
+  /** Readiness: пинг БД, если она настроена (docs/19 §2). */
   @Get("ready")
-  readiness(): ReadinessResponse {
-    return {
-      status: "ok",
-      checks: {
-        database: this.env.DATABASE_URL ? "not_checked_yet" : "not_configured",
-      },
-    };
+  async readiness(): Promise<ReadinessResponse> {
+    if (!this.db) {
+      return { status: "ok", checks: { database: "not_configured" } };
+    }
+    try {
+      await this.db.query("select 1");
+      return { status: "ok", checks: { database: "ok" } };
+    } catch {
+      return { status: "degraded", checks: { database: "error" } };
+    }
   }
 }

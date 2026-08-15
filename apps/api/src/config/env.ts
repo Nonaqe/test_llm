@@ -14,6 +14,8 @@ export const EnvSchema = z.object({
   DATABASE_URL: z.string().url().optional(),
   REDIS_URL: z.string().url().optional(),
   APP_SECRET: z.string().min(16).optional(),
+  /** Одноразовый токен создания первого владельца (печатает installer — docs/16 §4) */
+  SETUP_TOKEN: z.string().min(8).optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

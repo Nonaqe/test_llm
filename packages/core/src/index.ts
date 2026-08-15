@@ -3,3 +3,4 @@
  * Используется процессами api и worker. Границы — docs/04 §4.
  */
 export * from "./conversation/state-machine";
+export * from "./rbac/rbac";

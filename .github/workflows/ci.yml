@@ -8,6 +8,21 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: unichat
+          POSTGRES_USER: unichat
+          POSTGRES_PASSWORD: unichat
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U unichat"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
 
@@ -27,11 +42,28 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Unit tests
+      - name: Unit tests (без DATABASE_URL — e2e-файлы пропускаются)
         run: pnpm test
 
       - name: Build
         run: pnpm build
+
+      - name: Migrations on clean DB (docs/06 §8)
+        run: node apps/api/dist/migrate.js
+        env:
+          DATABASE_URL: postgres://unichat:unichat@localhost:5432/unichat
+
+      - name: E2E Phase 1 (auth/RBAC/settings против реальной БД)
+        run: pnpm --filter @uni-chat/api test
+        env:
+          DATABASE_URL: postgres://unichat:unichat@localhost:5432/unichat
+          APP_SECRET: ci-app-secret-0123456789
+          SETUP_TOKEN: ci-setup-token-42
+
+      - name: Migrations are idempotent (повторный прогон — no-op)
+        run: node apps/api/dist/migrate.js
+        env:
+          DATABASE_URL: postgres://unichat:unichat@localhost:5432/unichat
 
       - name: Dependency boundaries (docs/04 §4)
         run: pnpm check:deps
