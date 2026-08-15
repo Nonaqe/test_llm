@@ -220,6 +220,9 @@ describe.skipIf(!DB_URL)("e2e: widget zone /widget/v1 (Фаза 2)", () => {
       check();
     });
 
+    // детерминизм: ждём fake-AI ответ (seq4) ДО разрыва соединения
+    await pollMessages(3, 1);
+
     // разрыв → сообщения уходят мимо сокета → reconnect → добор по after_seq
     socket.disconnect();
     await new Promise((r) => setTimeout(r, 200));
@@ -229,18 +232,13 @@ describe.skipIf(!DB_URL)("e2e: widget zone /widget/v1 (Фаза 2)", () => {
         .set("Idempotency-Key", "e2e-key-msg-sock-2")
         .send({ text: "оффлайн-сообщение" }),
     );
-    await new Promise((r) => setTimeout(r, 800)); // ждём fake-AI
+    await new Promise((r) => setTimeout(r, 800)); // ждём fake-AI (seq6)
 
-    // Детерминированно: seq4 (fake-AI на сокет-сообщение), seq5 (оффлайн-посетитель),
-    // seq6 (fake-AI на него) — все добираются after_seq после reconnect
-    const lastSeen = 3;
-    const missed = await pollMessages(lastSeen, 3);
-    expect(missed.map((m: { seq: number }) => m.seq)).toEqual([4, 5, 6]);
-    expect(missed.map((m: { role: string }) => m.role)).toEqual([
-      "assistant",
-      "visitor",
-      "assistant",
-    ]);
+    // пропущенное при разрыве: seq5 (посетитель) + seq6 (fake-AI) — кэтч-ап after_seq
+    const lastSeen = 4;
+    const missed = await pollMessages(lastSeen, 2);
+    expect(missed.map((m: { seq: number }) => m.seq)).toEqual([5, 6]);
+    expect(missed.map((m: { role: string }) => m.role)).toEqual(["visitor", "assistant"]);
 
     socket.close();
   });
