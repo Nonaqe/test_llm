@@ -19,7 +19,7 @@ const SetupSchema = z.object({
  * POST /api/v1/setup — создание первого владельца по одноразовому SETUP-токену
  * (токен печатает installer; docs/16 §4, docs/22 §1).
  */
-@Controller("setup")
+@Controller("api/v1/setup")
 export class SetupController {
   constructor(
     private readonly auth: AuthService,

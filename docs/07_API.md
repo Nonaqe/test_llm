@@ -44,12 +44,13 @@ related:
 | Метод | Путь | Назначение |
 |---|---|---|
 | GET | `/widget/v1/health` | Статус сервера (WP-плагин, мониторинг) |
-| POST | `/widget/v1/init` | Инициализация: ключ + origin → visitor token + конфиг виджета |
-| POST | `/widget/v1/conversations` | Создать/вернуть диалог посетителя |
+| POST | `/widget/v1/init` | Инициализация: `{key, origin, anon_id, attributes?}` → visitor token + конфиг виджета + открытый диалог (если есть) |
+| POST | `/widget/v1/conversations` | Создать диалог посетителя |
+| GET | `/widget/v1/conversations/:id` | Состояние диалога (синхронизация клиента) |
 | GET | `/widget/v1/conversations/:id/messages?after_seq=N` | Кэтч-ап после reconnect |
-| POST | `/widget/v1/conversations/:id/messages` | Сообщение посетителя |
+| POST | `/widget/v1/conversations/:id/messages` | Сообщение посетителя (Idempotency-Key) |
 | POST | `/widget/v1/conversations/:id/handoff` | Явная просьба «позвать человека» |
-| POST | `/widget/v1/conversations/:id/leave-email` | Офлайн-заявка (email lead) |
+| POST | `/widget/v1/conversations/:id/leave-email` | Офлайн-заявка (email lead) — Фаза 4 |
 
 ### 2.1 Пример: инициализация
 

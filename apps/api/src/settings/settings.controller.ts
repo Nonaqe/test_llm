@@ -12,7 +12,7 @@ const PutSettingSchema = z.object({
   is_secret: z.boolean().default(false),
 });
 
-@Controller("settings")
+@Controller("api/v1/settings")
 export class SettingsController {
   constructor(
     private readonly settings: SettingsService,

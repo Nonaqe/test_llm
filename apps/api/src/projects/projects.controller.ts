@@ -20,7 +20,7 @@ const AddMemberSchema = z.object({
   project_role: z.enum(["project_admin", "operator"]),
 });
 
-@Controller("projects")
+@Controller("api/v1/projects")
 @UseGuards(JwtAuthGuard, ProjectGuard)
 export class ProjectsController {
   constructor(

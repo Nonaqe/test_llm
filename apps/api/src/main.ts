@@ -4,6 +4,7 @@ import { Logger } from "nestjs-pino";
 import { AppModule } from "./app.module";
 import { loadEnv } from "./config/env";
 import { configureApp } from "./common/app-setup";
+import { RedisIoAdapter } from "./realtime/redis-io.adapter";
 
 async function bootstrap(): Promise<void> {
   const env = loadEnv();
@@ -11,6 +12,17 @@ async function bootstrap(): Promise<void> {
   app.useLogger(app.get(Logger));
   app.enableShutdownHooks();
   configureApp(app, { developmentOrigin: env.NODE_ENV === "development" });
+
+  // Multi-instance fanout при нескольких api-инстансах (docs/03 §7).
+  // Без REDIS_URL работает дефолтный in-memory adapter (один инстанс — MVP-профиль).
+  if (env.REDIS_URL) {
+    const { createClient } = await import("redis");
+    const pub = createClient({ url: env.REDIS_URL });
+    const sub = pub.duplicate();
+    await Promise.all([pub.connect(), sub.connect()]);
+    app.useWebSocketAdapter(new RedisIoAdapter(app, pub, sub));
+  }
+
   await app.listen(env.PORT);
   const logger = app.get(Logger);
   logger.log(`chat-api listening on :${env.PORT} (v${env.APP_VERSION}, ${env.NODE_ENV})`);

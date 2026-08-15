@@ -8,16 +8,36 @@
       body {
         font-family: system-ui, sans-serif;
         margin: 2rem;
+        max-width: 640px;
       }
-      /* Ручная темизация сайта через CSS-переменные (docs/08_WIDGET.md §4, уровень 2) */
+      h1 {
+        font-size: 1.3rem;
+      }
+      ol {
+        margin: 1rem 0 0 1.2rem;
+        line-height: 1.7;
+      }
+      code {
+        background: #f3f4f6;
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 0.9em;
+      }
+      /* Ручная темизация сайтом (docs/08 §4, уровень 2) */
       :root {
         --uni-chat-accent: #b8860b;
       }
     </style>
   </head>
   <body>
-    <h1>Dev harness виджета</h1>
-    <p>Кнопка чата — внизу справа. Кастомизация — CSS-переменные выше.</p>
-    <script type="module" src="/src/element.ts" data-chat-key="pk_test_dev"></script>
+    <h1>Dev harness виджета (Фаза 2)</h1>
+    <ol>
+      <li>Поднять БД: <code>pnpm dev:db</code>, применить миграции: <code>pnpm --filter @uni-chat/api dev:migrate</code></li>
+      <li>Создать сайт в БД с ключом <code>pk_test_dev_key_000001</code> и origin <code>http://localhost:5173</code></li>
+      <li>Запустить API: <code>pnpm --filter @uni-chat/api dev:watch</code> + <code>pnpm dev:api</code></li>
+      <li>Эта страница: <code>pnpm dev:widget</code> → открыть адрес из консоли</li>
+    </ol>
+    <p>Кнопка чата — внизу справа. Ответы — заглушка Фазы 2 (эхо).</p>
+    <script type="module" src="/src/sdk.ts" data-chat-key="pk_test_dev_key_000001" data-chat-server="http://localhost:3000"></script>
   </body>
 </html>

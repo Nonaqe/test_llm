@@ -98,3 +98,56 @@ export interface ReadinessResponse {
     database: "ok" | "error" | "not_configured" | "not_checked_yet";
   };
 }
+
+// --- Публичная зона виджета /widget/v1 (docs/07 §2) ---
+
+export interface WidgetTheme {
+  accent?: string;
+  position?: "right" | "left";
+}
+
+export interface WidgetConfig {
+  locale: string;
+  theme: WidgetTheme;
+  greeting: string;
+}
+
+export interface WidgetMessageDto {
+  id: string;
+  conversation_id: string;
+  seq: number;
+  role: "visitor" | "assistant" | "operator" | "system";
+  content: string;
+  created_at: string;
+}
+
+export interface WidgetConversationDto {
+  id: string;
+  state: ConversationState;
+  last_seq: number;
+}
+
+export interface WidgetInitResponse {
+  visitor_token: string;
+  widget: WidgetConfig;
+  conversation: WidgetConversationDto | null;
+}
+
+// --- События Socket.IO, namespace /widget (docs/07 §4.1) ---
+
+export interface WidgetClientToServerEvents {
+  "widget:join": (
+    payload: { conversation_id: string },
+    ack?: (result: { ok: boolean; error?: string }) => void,
+  ) => void;
+  "widget:typing:start": (payload: { conversation_id: string }) => void;
+  "widget:typing:stop": (payload: { conversation_id: string }) => void;
+}
+
+export interface WidgetServerToClientEvents {
+  message: (message: WidgetMessageDto) => void;
+  "conversation:state": (payload: {
+    conversation_id: string;
+    state: ConversationState;
+  }) => void;
+}

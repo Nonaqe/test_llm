@@ -1,6 +1,6 @@
 {
   "name": "@uni-chat/widget",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "build": "vite build",
@@ -9,7 +9,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@uni-chat/shared": "workspace:*"
+    "@uni-chat/shared": "workspace:*",
+    "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
     "typescript": "^5.7.2",

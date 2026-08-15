@@ -19,5 +19,7 @@ export default defineConfig({
     setupFiles: ["./src/test-setup.ts"],
     testTimeout: 20_000,
     hookTimeout: 30_000,
+    // e2e-файлы шарят одну БД — строго последовательно
+    fileParallelism: false,
   },
 });

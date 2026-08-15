@@ -11,7 +11,7 @@ const LoginSchema = z.object({
   password: z.string().min(1).max(200),
 });
 
-@Controller("auth")
+@Controller("api/v1/auth")
 export class AuthController {
   constructor(
     private readonly auth: AuthService,

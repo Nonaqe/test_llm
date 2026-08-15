@@ -38,6 +38,17 @@ export class AppError extends HttpException {
       retry_after_s: retryAfterS,
     });
   }
+  static rateLimited(retryAfterS: number): AppError {
+    return new AppError("RATE_LIMITED", "Слишком много запросов. Подождите немного", 429, {
+      retry_after_s: retryAfterS,
+    });
+  }
+  static invalidOrigin(): AppError {
+    return new AppError("INVALID_ORIGIN", "Домен не разрешён для этого чата", 403);
+  }
+  static visitorUnauthorized(message = "Недействительный токен посетителя"): AppError {
+    return new AppError("VISITOR_TOKEN_INVALID", message, 401);
+  }
   static forbiddenProject(): AppError {
     return new AppError("FORBIDDEN_PROJECT", "Нет доступа к этому проекту", 403);
   }

@@ -14,7 +14,7 @@ const CreateUserSchema = z.object({
 });
 
 /** Команда установки (docs/22 §6): создание администраторов/операторов. */
-@Controller("users")
+@Controller("api/v1/users")
 @UseGuards(JwtAuthGuard)
 export class UsersController {
   constructor(

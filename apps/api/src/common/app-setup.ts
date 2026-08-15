@@ -9,8 +9,8 @@ import cookieParser from "cookie-parser";
 import { AllExceptionsFilter, DataEnvelopeInterceptor } from "./http";
 
 export function configureApp(app: INestApplication, opts: { developmentOrigin?: boolean } = {}): void {
-  // Приватная зона /api/v1; health остаётся публичным (docs/07 §1)
-  app.setGlobalPrefix("api/v1", { exclude: ["health", "health/ready"] });
+  // Префиксы зон зашиты в путях контроллеров: /api/v1/*, /widget/v1/*, /health
+  // (две независимые публичные зоны — IR-016)
   app.use(cookieParser());
 
   // Конверт {data}/{error} (docs/07 §1, §5)

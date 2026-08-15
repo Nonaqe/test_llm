@@ -4,7 +4,7 @@ import { defineConfig } from "vite";
 export default defineConfig({
   build: {
     lib: {
-      entry: "src/element.ts",
+      entry: "src/sdk.ts",
       name: "ChatWidget",
       formats: ["es"],
       fileName: () => "widget.js",

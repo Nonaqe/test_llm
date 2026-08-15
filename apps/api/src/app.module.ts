@@ -2,11 +2,14 @@ import { Module } from "@nestjs/common";
 import { LoggerModule } from "nestjs-pino";
 import { ConfigModule } from "./config/config.module";
 import { ReposModule } from "./db/repos.module";
+import { WidgetReposModule } from "./widget/widget.repos.module";
+import { RealtimeModule } from "./realtime/realtime.module";
 import { HealthModule } from "./health/health.module";
 import { AuthModule } from "./auth/auth.module";
 import { ProjectsModule } from "./projects/projects.module";
 import { SettingsModule } from "./settings/settings.module";
 import { UsersModule } from "./users/users.module";
+import { WidgetModule } from "./widget/widget.module";
 import { loadEnv } from "./config/env";
 
 const env = loadEnv();
@@ -15,6 +18,8 @@ const env = loadEnv();
   imports: [
     ConfigModule,
     ReposModule,
+    WidgetReposModule,
+    RealtimeModule,
     LoggerModule.forRoot({
       pinoHttp: {
         level: env.LOG_LEVEL,
@@ -37,6 +42,7 @@ const env = loadEnv();
     ProjectsModule,
     SettingsModule,
     UsersModule,
+    WidgetModule,
   ],
 })
 export class AppModule {}
