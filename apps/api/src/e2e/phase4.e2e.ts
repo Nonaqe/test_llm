@@ -140,7 +140,7 @@ describe.skipIf(!DB_URL)("e2e: эскалация и операторы (Фаз�
     projectId = project.body.data.project.id;
     await pool.query(
       `insert into sites (project_id, name, domain, allowed_origins, widget_public_key, widget_config)
-       values ($1, 'P4 site', 'p4.example.com', $2::jsonb, $3, '{}::jsonb')`,
+       values ($1, 'P4 site', 'p4.example.com', $2::jsonb, $3, '{}'::jsonb)`,
       [projectId, JSON.stringify([GOOD_ORIGIN]), SITE_KEY],
     );
 
@@ -169,7 +169,7 @@ describe.skipIf(!DB_URL)("e2e: эскалация и операторы (Фаз�
     const foreign = await pool.query("insert into projects (name) values ('Foreign') returning id");
     const foreignSite = await pool.query(
       `insert into sites (project_id, name, domain, allowed_origins, widget_public_key)
-       values ($1, 'F', 'f.example.com', '[]::jsonb', 'pk_foreign_key_0001') returning id`,
+       values ($1, 'F', 'f.example.com', '[]'::jsonb, 'pk_foreign_key_0001') returning id`,
       [foreign.rows[0].id],
     );
     const fVisitor = await pool.query(

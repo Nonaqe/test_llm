@@ -176,10 +176,18 @@ describe.skipIf(!DB_URL)("e2e: AI + Knowledge (Фаза 3)", () => {
     expect(send.status).toBe(201);
 
     // финальное сообщение с цитатами и уверенностью
+    let lastMsgs: unknown = null;
     const messages = await poll(
-      widgetMessages,
+      async () => {
+        lastMsgs = await widgetMessages();
+        return lastMsgs as Array<{ id: string; seq: number; role: string; content: string; citations?: unknown[]; confidence?: number }>;
+      },
       (msgs) => msgs.some((m) => m.role === "assistant" && m.citations && m.citations.length > 0),
-    );
+      20_000,
+    ).catch((err: Error) => {
+      // Диагностика в CI: что реально записано (fallback? system-ошибка? ничего?)
+      throw new Error(`E1: ответ с цитатами не получен; последние сообщения=${JSON.stringify(lastMsgs)}`, { cause: err });
+    });
     const answer = messages.find((m) => m.role === "assistant")!;
     expect(answer.content).toContain("14 дней"); // знание из FAQ
     expect(answer.content).toContain("[1]"); // ссылка на источник

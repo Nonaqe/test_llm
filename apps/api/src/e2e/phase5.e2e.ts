@@ -102,7 +102,7 @@ describe.skipIf(!DB_URL)("e2e: сайты, аналитика, песочниц�
     const foreign = await pool.query("insert into projects (name) values ('Foreign') returning id");
     const foreignSite = await pool.query(
       `insert into sites (project_id, name, domain, allowed_origins, widget_public_key)
-       values ($1, 'F', 'f.example.com', '[]::jsonb', 'pk_foreign_p5_key') returning id`,
+       values ($1, 'F', 'f.example.com', '[]'::jsonb, 'pk_foreign_p5_key') returning id`,
       [foreign.rows[0].id],
     );
     foreignSiteId = foreignSite.rows[0].id;

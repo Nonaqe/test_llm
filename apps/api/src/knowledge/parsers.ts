@@ -120,11 +120,7 @@ export function htmlToText(html: string): string {
 }
 
 async function pdfToText(buffer: Buffer): Promise<string> {
-  // dynamic import .mjs из CJS-сборки (tsc транслирует import() в require)
-  const dynImport = new Function("m", "return import(m)") as (m: string) => Promise<{
-    getDocument: (opts: unknown) => { promise: Promise<{ numPages: number; getPage: (n: number) => Promise<{ getTextContent: () => Promise<{ items: Array<{ str?: string }> }> }> }> };
-  }>;
-  const pdfjs = await dynImport("pdfjs-dist/legacy/build/pdf.mjs");
+  const pdfjs = await loadPdfjs();
   const doc = await pdfjs.getDocument({
     data: new Uint8Array(buffer),
     isEvalSupported: false,
@@ -143,6 +139,28 @@ async function pdfToText(buffer: Buffer): Promise<string> {
     throw new Error("no text layer: PDF, вероятно, скан (OCR — V2)");
   }
   return text;
+}
+
+interface PdfJsModule {
+  getDocument: (opts: unknown) => { promise: Promise<{ numPages: number; getPage: (n: number) => Promise<{ getTextContent: () => Promise<{ items: Array<{ str?: string }> }> }> }> };
+}
+
+/**
+ * Загрузка ESM pdfjs из CJS-сборки. В проде (node dist/main.js) tsc превратил бы
+ * import() в require → нужен нативный import через new Function. Под vitest код
+ * исполняется в VM-контексте без support dynamic import в new Function — там
+ * работает прямой import(), который трансформирует загрузчик vitest.
+ */
+async function loadPdfjs(): Promise<PdfJsModule> {
+  try {
+    const dynImport = new Function("m", "return import(m)") as (m: string) => Promise<PdfJsModule>;
+    return await dynImport("pdfjs-dist/legacy/build/pdf.mjs");
+  } catch (err) {
+    if (String((err as Error)?.message ?? "").includes("dynamic import callback")) {
+      return (await import("pdfjs-dist/legacy/build/pdf.mjs")) as unknown as PdfJsModule;
+    }
+    throw err;
+  }
 }
 
 async function docxToText(buffer: Buffer): Promise<string> {
