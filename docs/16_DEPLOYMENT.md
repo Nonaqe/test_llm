@@ -49,7 +49,6 @@ flowchart TB
             WORKER["chat-worker"]
             PG["postgres:16-pgvector"]
             REDIS["redis:7"]
-            BK["backup — cron"]
             V1[("volume: pgdata")]
             V2[("volume: uploads")]
             V3[("volume: backups")]
@@ -62,8 +61,7 @@ flowchart TB
     APP --> REDIS
     WORKER --> PG
     WORKER --> REDIS
-    BK --> PG
-    BK --> S3["S3-совместимое хранилище (опция)"]
+    WORKER -->|"бэкапы (BackupService)"| PG
 ```
 
 Порты наружу — только 80/443 (Caddy). Postgres/Redis не публикуются (внутренняя сеть compose).
@@ -74,10 +72,11 @@ flowchart TB
 |---|---|---|---|
 | caddy | `caddy:2` | TLS, reverse proxy, статика | — |
 | api | `chat-platform:<semver>` | REST + Socket.IO + статика; применяет миграции | 512 MB |
-| worker | тот же образ, `command: node dist/worker.js` | очереди, таймеры, бэкапы | 1 GB |
+| worker | тот же образ, `command: node dist/worker.js` | очереди, таймеры, бэкапы (BackupService: ночной тикер BACKUP_AT + кнопка в админке) | 1 GB |
 | postgres | `pgvector/pgvector:pg16` | БД + векторы | — |
 | redis | `redis:7-alpine` (AOF) | очереди/pub-sub/rate limit | — |
-| backup | alpine + crond | pg_dump + uploads по расписанию | — |
+
+Отдельного backup-контейнера нет: бэкапы выполняет worker (расписание, кнопка, ретенция и алерты — в одном сервисе, IR-052 в DOC-031).
 
 Пример (иллюстративный; финальный файл в `infra/docker/`):
 
@@ -152,7 +151,7 @@ chat.example.com {
 2. Installer спрашивает: домен чат-сервера, email для Let's Encrypt
    → генерирует .env (APP_SECRET, DB_PASSWORD) с правами 600
    → docker compose pull && docker compose up -d
-   → печатает одноразовый SETUP-токен
+   → печатает одноразовый SETUP-токен и адрес визарда (/wizard)
 
 3. Открыть https://chat.example.com
    → визард: создать администратора (по токену)
@@ -191,7 +190,7 @@ chat.example.com {
 - [ ] `.env` создан installer'ом; `APP_SECRET` сохранён заказчиком в менеджере паролей.
 - [ ] Визард пройден: админ создан, проект/сайт есть.
 - [ ] Health-check зелёный; тест-сообщение из виджета получает ответ AI.
-- [ ] Первый бэкап выполнен (кнопка в админке / cron отработал).
+- [ ] Первый бэкап выполнен (кнопка в админке / ночной тикер worker по BACKUP_AT).
 
 ## Частые ошибки
 

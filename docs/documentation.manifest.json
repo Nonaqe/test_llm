@@ -293,7 +293,7 @@
       "id": "DOC-016",
       "file": "docs/16_DEPLOYMENT.md",
       "title": "Развёртывание",
-      "summary": "Установка на VPS заказчика: требования, installer, docker compose (caddy, api, worker, postgres, redis, backup), визард первого запуска.",
+      "summary": "Установка на VPS заказчика: требования, installer, docker compose (caddy, api, worker, postgres, redis; бэкапы — worker), визард первого запуска.",
       "purpose": "Как система попадает на сервер заказчика.",
       "when_to_read": "При установке, диагностике деплоя, планировании ресурсов.",
       "when_not_to_read": "При разработке без задач деплоя.",
@@ -302,7 +302,7 @@
       "related_documents": ["DOC-017", "DOC-020", "DOC-003"],
       "status": "draft",
       "priority": "high",
-      "last_updated": "2026-08-15"
+      "last_updated": "2026-08-21"
     },
     {
       "id": "DOC-017",
