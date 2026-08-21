@@ -1,0 +1,18 @@
+/* Universal Chat — только страница настроек плагина (админка WP). */
+
+.unichat-settings #unichat-health-result {
+	margin-left: 12px;
+	font-weight: 600;
+}
+
+.unichat-settings #unichat-health-result.unichat-ok {
+	color: #00a32a;
+}
+
+.unichat-settings #unichat-health-result.unichat-bad {
+	color: #d63638;
+}
+
+.unichat-settings .description code {
+	white-space: nowrap;
+}
