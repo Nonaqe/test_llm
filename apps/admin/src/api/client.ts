@@ -17,9 +17,11 @@ import type {
   CreateRuleInput,
   CreateSiteInput,
   CreateUserInput,
+  DiagnosticsDto,
   EscalationRuleDto,
   FaqDto,
   KnowledgeDocumentDto,
+  LastBackupInfo,
   MemberSummary,
   PendingHandoff,
   ProjectDetail,
@@ -362,5 +364,17 @@ export class AdminApi {
   /** POST /settings/ai-provider/check — «Проверить соединение» (docs/22 §3). */
   checkAiProvider(): Promise<AiProviderCheckResult> {
     return this.request("POST", "/settings/ai-provider/check");
+  }
+
+  // --- диагностика (Фаза 7, docs/30 §Ф7; endpoint добавляется параллельно) ---
+
+  /** GET /diagnostics — версии, статусы сервисов, последний бэкап. */
+  getDiagnostics(): Promise<DiagnosticsDto> {
+    return this.request("GET", "/diagnostics");
+  }
+
+  /** POST /diagnostics/backup — создать бэкап сейчас; возвращает новый last_backup. */
+  triggerBackup(): Promise<LastBackupInfo> {
+    return this.request("POST", "/diagnostics/backup");
   }
 }

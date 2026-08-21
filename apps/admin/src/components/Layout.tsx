@@ -77,6 +77,9 @@ export function Layout() {
           <NavLink to="/settings" className={({ isActive }) => `side-link${isActive ? " active" : ""}`}>
             {t("nav.settings")}
           </NavLink>
+          <NavLink to="/diagnostics" className={({ isActive }) => `side-link${isActive ? " active" : ""}`}>
+            {t("nav.diagnostics")}
+          </NavLink>
           <NavLink to="/wizard" className={({ isActive }) => `side-link${isActive ? " active" : ""}`}>
             {t("nav.wizard")}
           </NavLink>

@@ -6,7 +6,7 @@
  *   /wizard — визард первого входа (доступен и без сессии — шаг setup);
  *   /inbox — панель оператора из Ф4 (функциональность сохранена);
  *   /projects, /projects/:id/{sites|assistant|knowledge|dashboard|sandbox},
- *   /team, /settings — новые страницы панели.
+ *   /team, /settings, /diagnostics — страницы панели (Ф7: диагностика).
  * Защищённые маршруты: без валидной сессии (me/401) → редирект /login.
  */
 import type { ReactNode } from "react";
@@ -15,6 +15,7 @@ import { Layout } from "./components/Layout";
 import { useT } from "./i18n";
 import { AssistantPage } from "./pages/AssistantPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { DiagnosticsPage } from "./pages/DiagnosticsPage";
 import { InboxPage } from "./pages/InboxPage";
 import { KnowledgePage } from "./pages/KnowledgePage";
 import { LoginPage } from "./pages/LoginPage";
@@ -68,6 +69,7 @@ export function App() {
                 <Route path="/projects/:projectId/sandbox" element={<SandboxPage />} />
                 <Route path="/team" element={<TeamPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/diagnostics" element={<DiagnosticsPage />} />
                 <Route path="*" element={<Navigate to="/inbox" replace />} />
               </Route>
             </Routes>

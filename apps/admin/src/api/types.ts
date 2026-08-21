@@ -373,3 +373,38 @@ export interface AiProviderCheckResult {
   kind?: string;
   error?: string;
 }
+
+// --- Диагностика (Фаза 7, docs/30 §Ф7; GET /diagnostics, POST /diagnostics/backup) ---
+
+/** Статус компонента установки для страницы диагностики. */
+export type ComponentStatusValue = "ok" | "error" | "not_configured";
+
+/** Последний бэкап прошёл успешно: метаданные дампов. */
+export interface LastBackupOk {
+  ok: true;
+  at_iso: string;
+  dump_file: string;
+  uploads_file: string | null;
+  size_bytes: number;
+}
+
+/** Последний бэкап завершился ошибкой (текст от backup-сервиса). */
+export interface LastBackupError {
+  ok: false;
+  error: string;
+}
+
+/** Union по полю ok: успешный бэкап несёт метаданные, неуспешный — error. */
+export type LastBackupInfo = LastBackupOk | LastBackupError;
+
+/** GET /diagnostics — сводка состояния установки (docs/30 §Ф7). */
+export interface DiagnosticsDto {
+  version: string;
+  node: string;
+  uptime_s: number;
+  db: ComponentStatusValue;
+  redis: ComponentStatusValue;
+  /** kind настроенного AI-провайдера; null — провайдер не настроен. */
+  provider_kind: string | null;
+  last_backup: LastBackupInfo | null;
+}

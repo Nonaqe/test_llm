@@ -1197,6 +1197,63 @@ button {
   opacity: 0.85;
 }
 
+/* --- диагностика (Ф7) --- */
+
+.diag-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.diag-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+}
+
+.diag-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.diag-row dt {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.diag-row dd {
+  margin: 0;
+  font-size: 13px;
+  color: #111827;
+  text-align: right;
+  word-break: break-all;
+}
+
+.chip.diag-ok {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.chip.diag-error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.chip.diag-not_configured {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.diag-backup-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 /* --- визард --- */
 
 .wizard-wrap {
