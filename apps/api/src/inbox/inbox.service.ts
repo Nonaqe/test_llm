@@ -146,14 +146,18 @@ export class InboxService {
       input.isNote ? MessageRole.Note : MessageRole.Operator,
       input.text,
     );
-    this.gateway.emitMessage(conversation.id, {
-      id: message.id,
-      conversation_id: message.conversation_id,
-      seq: message.seq,
-      role: "operator",
-      content: message.content,
-      created_at: new Date(message.created_at).toISOString(),
-    });
+    // Внутренние заметки (is_note) НЕ транслируются посетителю — только операторам
+    // (REST-кэтч-ап фильтрует note в widget.repos.listMessages; realtime должен так же)
+    if (!input.isNote) {
+      this.gateway.emitMessage(conversation.id, {
+        id: message.id,
+        conversation_id: message.conversation_id,
+        seq: message.seq,
+        role: "operator",
+        content: message.content,
+        created_at: new Date(message.created_at).toISOString(),
+      });
+    }
     this.admin.emitMessage(conversation.project_id, {
       id: message.id,
       conversation_id: message.conversation_id,
