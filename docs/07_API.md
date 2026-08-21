@@ -163,7 +163,7 @@ POST /api/v1/conversations/0192a1b2-.../return-to-ai
 
 ## 4. Socket.IO
 
-Единый транспорт realtime для виджета и панели (ADR-003). Сообщения **отправляются** через REST (персистентность + идемпотентность), Socket.IO используется для **пуша** и лёгких событий (typing). Подключение: JWT в handshake (`auth.token`); комнаты по правам.
+Единый транспорт realtime для виджета и панели (ADR-003). Сообщения **отправляются** через REST (персистентность + идемпотентность), Socket.IO используется для **пуша** и лёгких событий (typing). Подключение: JWT в handshake (`auth.token`); namespace `/admin` принимает JWT и из httpOnly-cookie `unichat_access` (клиент — с `withCredentials`; fallback к `auth.token` для e2e/скриптов) — IR-045; комнаты по правам. CORS на `/admin` не отражает произвольные Origin (cookie + credentials) — панель same-origin либо за dev-прокси.
 
 ### 4.1 Namespace `/widget`
 
