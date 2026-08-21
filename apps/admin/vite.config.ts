@@ -8,6 +8,11 @@ export default defineConfig({
     proxy: {
       // Локальная разработка: API-запросы уходят в chat-api (docs/23_DEVELOPER_GUIDE.md)
       "/api": "http://localhost:3000",
+      // Namespace /admin Socket.IO (docs/07 §4.2): прокидываем и websocket
+      "/socket.io": {
+        target: "http://localhost:3000",
+        ws: true,
+      },
     },
   },
 });
