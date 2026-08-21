@@ -3,6 +3,7 @@
  * conversations, messages, handoffs. Только параметризованные запросы.
  */
 import { Inject, Injectable } from "@nestjs/common";
+import { randomBytes } from "node:crypto";
 import { assertTransition } from "@uni-chat/core";
 import { ConversationState, MessageRole } from "@uni-chat/shared";
 import type { Pool } from "pg";
@@ -14,6 +15,28 @@ export interface SiteRow {
   allowed_origins: string[];
   widget_config: Record<string, unknown>;
   is_active: boolean;
+}
+
+/** Полная строка sites для приватной зоны админки (docs/06 §4; Ф5 REST сайтов). */
+export interface AdminSiteRow {
+  id: string;
+  project_id: string;
+  name: string;
+  domain: string;
+  allowed_origins: string[];
+  widget_public_key: string;
+  widget_config: Record<string, unknown>;
+  is_active: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
+/**
+ * Публичный ключ виджета. Отдельного генератора в кодовой базе нет (сайты до Ф5
+ * создавались только SQL-инсертом в e2e) — 24 случайных байта в base64url.
+ */
+export function generateWidgetPublicKey(): string {
+  return randomBytes(24).toString("base64url");
 }
 
 export interface ConversationRow {
@@ -58,7 +81,101 @@ export class SitesRepo {
     if (!row) return null;
     return { ...row, allowed_origins: row.allowed_origins ?? [] };
   }
+
+  // --- Приватная зона админки (Ф5 REST сайтов, docs/30 §Ф5) ---
+
+  /** Сайты проектов; null — все (installation-менеджер). */
+  async listByProjects(projectIds: string[] | null): Promise<AdminSiteRow[]> {
+    if (!this.db) throw new Error("DATABASE_URL не настроен");
+    if (projectIds !== null && projectIds.length === 0) return [];
+    const { rows } = await this.db.query(
+      projectIds === null
+        ? `select ${ADMIN_SITE_COLUMNS} from sites order by created_at asc`
+        : `select ${ADMIN_SITE_COLUMNS} from sites where project_id = any($1::uuid[]) order by created_at asc`,
+      projectIds === null ? [] : [projectIds],
+    );
+    return rows as AdminSiteRow[];
+  }
+
+  async findAdminById(siteId: string): Promise<AdminSiteRow | null> {
+    if (!this.db) throw new Error("DATABASE_URL не настроен");
+    const { rows } = await this.db.query(
+      `select ${ADMIN_SITE_COLUMNS} from sites where id = $1 limit 1`,
+      [siteId],
+    );
+    return (rows[0] as AdminSiteRow) ?? null;
+  }
+
+  async insert(input: {
+    projectId: string;
+    name: string;
+    domain: string;
+    allowedOrigins: string[];
+    widgetPublicKey: string;
+    widgetConfig: Record<string, unknown>;
+  }): Promise<AdminSiteRow> {
+    if (!this.db) throw new Error("DATABASE_URL не настроен");
+    const { rows } = await this.db.query(
+      `insert into sites (project_id, name, domain, allowed_origins, widget_public_key, widget_config)
+       values ($1, $2, $3, $4::jsonb, $5, $6::jsonb)
+       returning ${ADMIN_SITE_COLUMNS}`,
+      [
+        input.projectId,
+        input.name,
+        input.domain,
+        JSON.stringify(input.allowedOrigins),
+        input.widgetPublicKey,
+        JSON.stringify(input.widgetConfig),
+      ],
+    );
+    return rows[0] as AdminSiteRow;
+  }
+
+  /** Частичное обновление; возвращает null, если сайта нет. */
+  async update(
+    siteId: string,
+    patch: Partial<Pick<AdminSiteRow, "name" | "domain" | "allowed_origins" | "widget_config" | "is_active">>,
+  ): Promise<AdminSiteRow | null> {
+    if (!this.db) throw new Error("DATABASE_URL не настроен");
+    const sets: string[] = [];
+    const params: unknown[] = [siteId];
+    const add = (column: string, value: unknown): void => {
+      params.push(typeof value === "object" && value !== null ? JSON.stringify(value) : value);
+      sets.push(`${column} = $${params.length}`);
+    };
+    if (patch.name !== undefined) add("name", patch.name);
+    if (patch.domain !== undefined) add("domain", patch.domain);
+    if (patch.allowed_origins !== undefined) add("allowed_origins", patch.allowed_origins);
+    if (patch.widget_config !== undefined) add("widget_config", patch.widget_config);
+    if (patch.is_active !== undefined) add("is_active", patch.is_active);
+    if (sets.length === 0) return await this.findAdminById(siteId);
+    const { rows } = await this.db.query(
+      `update sites set ${sets.join(", ")}, updated_at = now()
+       where id = $1
+       returning ${ADMIN_SITE_COLUMNS}`,
+      params,
+    );
+    return (rows[0] as AdminSiteRow) ?? null;
+  }
+
+  /**
+   * Перезапись ключа: старый ключ перестаёт работать немедленно
+   * (findByKey читает ту же колонку). null — сайта нет.
+   */
+  async regenerateKey(siteId: string, newKey: string): Promise<AdminSiteRow | null> {
+    if (!this.db) throw new Error("DATABASE_URL не настроен");
+    const { rows } = await this.db.query(
+      `update sites set widget_public_key = $2, updated_at = now()
+       where id = $1
+       returning ${ADMIN_SITE_COLUMNS}`,
+      [siteId, newKey],
+    );
+    return (rows[0] as AdminSiteRow) ?? null;
+  }
 }
+
+const ADMIN_SITE_COLUMNS =
+  "id, project_id, name, domain, allowed_origins, widget_public_key, widget_config, is_active, created_at, updated_at";
 
 @Injectable()
 export class VisitorsRepo {

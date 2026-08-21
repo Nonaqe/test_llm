@@ -214,6 +214,65 @@ export interface AdminPendingHandoffDto extends AdminHandoffDto {
   conversation_state: ConversationState;
 }
 
+// --- Фаза 5 Admin Panel: сайты, аналитика проекта, песочница (docs/30 §Ф5) ---
+
+/** Сайт проекта — строка таблицы sites (docs/06 §4). */
+export interface AdminSiteDto {
+  id: string;
+  project_id: string;
+  name: string;
+  domain: string;
+  allowed_origins: string[];
+  widget_public_key: string;
+  /** Конфиг виджета: произвольный jsonb (см. WidgetConfig как подмножество). */
+  widget_config: Record<string, unknown>;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Точка дневного ряда аналитики проекта (docs/30 §Ф5 «dashboard»). */
+export interface AnalyticsDayPoint {
+  /** YYYY-MM-DD (по date_trunc('day', created_at)). */
+  date: string;
+  conversations: number;
+  messages: number;
+  handoffs: number;
+}
+
+/** Строка топа вопросов с низкой релевантностью. */
+export interface LowRelevanceItem {
+  text: string;
+  count: number;
+}
+
+export interface ProjectAnalyticsDto {
+  days: AnalyticsDayPoint[];
+  totals: {
+    conversations: number;
+    handoffs: number;
+    /** handoffs/conversations; null при нулевом числе диалогов. */
+    handoff_rate: number | null;
+    /**
+     * Доля диалогов периода без записей handoffs (не доходивших до
+     * WAITING_OPERATOR/OPERATOR_ACTIVE); null при нулевом числе диалогов.
+     */
+    ai_resolved_share: number | null;
+    /** Среднее время первого ответа ассистента, мс; null если данных нет. */
+    avg_first_response_ms: number | null;
+  };
+  low_relevance_top: LowRelevanceItem[];
+}
+
+/** Ответ песочницы тестового диалога (без записи conversation/messages). */
+export interface SandboxAnswerDto {
+  text: string;
+  citations: WidgetMessageCitation[];
+  /** Самооценка LLM 0..1; null на fallback-ходе (LLM не вызывался). */
+  confidence: number | null;
+  fallback: boolean;
+}
+
 // --- События Socket.IO, namespace /admin (docs/07 §4.2) ---
 
 export interface AdminClientToServerEvents {
