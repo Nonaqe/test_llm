@@ -5,5 +5,6 @@ import { AssistantsRepo } from "./assistants.repo";
 @Module({
   controllers: [AssistantsController],
   providers: [AssistantsRepo],
+  exports: [AssistantsRepo],
 })
 export class AssistantsModule {}

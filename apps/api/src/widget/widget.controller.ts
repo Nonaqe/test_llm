@@ -4,7 +4,7 @@ import { z } from "zod";
 import { HealthResponse } from "@uni-chat/shared";
 import { ENV, type Env } from "../config/env";
 import { VisitorGuard, type VisitorRequest } from "./visitor.guard";
-import { InitSchema, SendMessageSchema, WidgetService } from "./widget.service";
+import { InitSchema, LeaveEmailSchema, SendMessageSchema, WidgetService } from "./widget.service";
 
 const AfterSeqQuery = z.coerce.number().int().min(0).default(0);
 
@@ -85,5 +85,17 @@ export class WidgetController {
   @HttpCode(200)
   async requestHandoff(@Param("id") id: string, @Req() req: VisitorRequest) {
     return this.widget.requestHandoff(id, req.visitor!, req.ip ?? null);
+  }
+
+  /** Офлайн-заявка: email-лид (docs/07 §2.3, docs/13 §4). */
+  @Post("conversations/:id/leave-email")
+  @UseGuards(VisitorGuard)
+  async leaveEmail(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() req: VisitorRequest,
+  ) {
+    const input = LeaveEmailSchema.parse(body);
+    return this.widget.leaveEmail(id, req.visitor!, input, req.ip ?? null);
   }
 }

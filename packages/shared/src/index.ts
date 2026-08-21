@@ -47,6 +47,32 @@ export enum HandoffRequestedBy {
   Operator = "operator",
 }
 
+// --- Правила эскалации (docs/14_ESCALATION_RULES.md §3) ---
+
+export enum EscalationRuleType {
+  ExplicitRequest = "explicit_request",
+  LowConfidence = "low_confidence",
+  Keyword = "keyword",
+  Intent = "intent",
+  Complaint = "complaint",
+  NoAnswer = "no_answer",
+}
+
+export enum EscalationAction {
+  Handoff = "handoff",
+  FallbackMessage = "fallback_message",
+}
+
+export interface EscalationRuleDto {
+  id: string;
+  assistant_id: string;
+  priority: number;
+  type: EscalationRuleType;
+  params: Record<string, unknown>;
+  action: EscalationAction;
+  enabled: boolean;
+}
+
 // --- Роли (docs/15_SECURITY.md §2) ---
 
 export enum InstallationRole {
@@ -142,7 +168,84 @@ export interface WidgetInitResponse {
   conversation: WidgetConversationDto | null;
 }
 
-// --- События Socket.IO, namespace /widget (docs/07 §4.1) ---
+// --- Приватная зона админки /api/v1 (docs/07 §3) ---
+
+/** Карточка диалога для inbox (docs/13 §2): причина handoff видна оператору. */
+export interface AdminHandoffDto {
+  id: string;
+  reason: HandoffReason;
+  requested_by: HandoffRequestedBy;
+  rule_id: string | null;
+  created_at: string;
+}
+
+export interface AdminConversationDto {
+  id: string;
+  project_id: string;
+  site_id: string;
+  state: ConversationState;
+  assigned_operator_id: string | null;
+  last_seq: number;
+  last_message_at: string | null;
+  created_at: string;
+  handoff: AdminHandoffDto | null;
+}
+
+/** Полное сообщение для панели: включая role=note (заметки команды). */
+export interface AdminMessageDto {
+  id: string;
+  conversation_id: string;
+  seq: number;
+  role: MessageRole;
+  content: string;
+  created_at: string;
+  citations?: WidgetMessageCitation[];
+  confidence?: number;
+}
+
+export interface AdminConversationListResponse {
+  conversations: AdminConversationDto[];
+  next_cursor: string | null;
+}
+
+export interface AdminPendingHandoffDto extends AdminHandoffDto {
+  conversation_id: string;
+  project_id: string;
+  conversation_state: ConversationState;
+}
+
+// --- События Socket.IO, namespace /admin (docs/07 §4.2) ---
+
+export interface AdminClientToServerEvents {
+  "admin:subscribe_project": (
+    payload: { project_id: string },
+    ack?: (result: { ok: boolean; error?: string }) => void,
+  ) => void;
+  "admin:unsubscribe_project": (payload: { project_id: string }) => void;
+  /** Heartbeat presence оператора (TTL на сервере — docs/13 §5) */
+  "presence:heartbeat": (payload: { project_id: string }) => void;
+  "admin:typing": (payload: { conversation_id: string }) => void;
+}
+
+export interface AdminServerToClientEvents {
+  "conversation:created": (payload: { conversation: AdminConversationDto }) => void;
+  "conversation:state_changed": (payload: {
+    conversation_id: string;
+    project_id: string;
+    state: ConversationState;
+  }) => void;
+  message: (message: AdminMessageDto) => void;
+  "handoff:created": (payload: {
+    conversation_id: string;
+    project_id: string;
+    handoff_id: string;
+    reason: HandoffReason;
+  }) => void;
+  "queue:updated": (payload: { project_id: string }) => void;
+  "operator:presence": (payload: { project_id: string; online_count: number }) => void;
+  /** Релей typing посетителя операторам (расширение контракта — docs/07 §7) */
+  "visitor:typing": (payload: { conversation_id: string; project_id: string }) => void;
+}
 
 export interface WidgetClientToServerEvents {
   "widget:join": (
@@ -161,4 +264,8 @@ export interface WidgetServerToClientEvents {
   }) => void;
   /** Частичный токен стрима AI (не персистится; docs/07 §4.1) */
   ai_token: (payload: { token: string }) => void;
+  /** Есть ли операторы онлайн у проекта диалога (docs/07 §4.1, docs/13 §5) */
+  "presence:operators": (payload: { online: boolean }) => void;
+  /** Оператор набирает ответ (TTL 5 с на сервере) */
+  "operator:typing": () => void;
 }

@@ -2,6 +2,8 @@
  * Conversation Engine (docs/05 §3, docs/11): retrieval → гейт → промпт →
  * LLM-стрим (ai_token) → structured output (1 fix-up) → финальное сообщение
  * с citations/confidence. Гейт отключает вызов LLM (анти-галлюцинации, E2).
+ * Фаза 4: после AI-хода сигналы structured output поступают в RulesEngine
+ * (docs/14 §1–5): LLM поставляет сигналы, решение принимает код.
  */
 import { Injectable, Logger } from "@nestjs/common";
 import {
@@ -9,16 +11,22 @@ import {
   buildContextBlocks,
   buildHistoryMessages,
   buildSystemPrompt,
+  evaluateEscalationRules,
   fixupInstruction,
   parseStructuredAnswer,
   type ChatMessage,
+  type EscalationMatch,
+  type EscalationSignals,
+  type StructuredAnswer,
 } from "@uni-chat/core";
-import { MessageRole } from "@uni-chat/shared";
+import { HandoffReason, HandoffRequestedBy, MessageRole } from "@uni-chat/shared";
 import { AiProviderService } from "../ai/ai-provider.service";
 import { AssistantsRepo, type AssistantRow } from "../assistants/assistants.repo";
+import { EscalationsRepo } from "../escalations/escalations.repo";
 import { ConversationsRepo, type ConversationRow, type WidgetMessageRow } from "../widget/widget.repos";
 import { RetrievalService } from "../rag/retrieval.service";
 import { WidgetGateway } from "../realtime/widget.gateway";
+import { HandoffService } from "./handoff.service";
 import { toMessageDto } from "../widget/message-dto";
 
 interface EngineSettings {
@@ -46,15 +54,18 @@ export class ConversationEngineService {
   constructor(
     private readonly assistants: AssistantsRepo,
     private readonly conversations: ConversationsRepo,
+    private readonly escalations: EscalationsRepo,
     private readonly retrieval: RetrievalService,
     private readonly providers: AiProviderService,
     private readonly gateway: WidgetGateway,
+    private readonly handoffs: HandoffService,
   ) {}
 
   /** Вызывается после персистентности сообщения посетителя (docs/05 §3). */
   async onVisitorMessage(conversation: ConversationRow, text: string): Promise<void> {
     const assistant = await this.assistants.ensureForProject(conversation.project_id);
     const settings = settingsOf(assistant);
+    await this.escalations.ensureDefaults(assistant.id);
 
     // Retrieval-гейт: LLM не вызывается без релевантных знаний (E2, docs/11 §5)
     let retrieval;
@@ -65,11 +76,11 @@ export class ConversationEngineService {
       });
     } catch (err) {
       this.logger.warn(`retrieval failed: ${String(err)}`);
-      await this.appendAndEmit(conversation.id, MessageRole.Assistant, settings.fallbackMessage, undefined, undefined);
+      await this.onNoAnswer(conversation, assistant.id, settings, text, {});
       return;
     }
     if (!retrieval.passed) {
-      await this.appendAndEmit(conversation.id, MessageRole.Assistant, settings.fallbackMessage, undefined, undefined);
+      await this.onNoAnswer(conversation, assistant.id, settings, text, {});
       return;
     }
 
@@ -101,6 +112,26 @@ export class ConversationEngineService {
 
     try {
       const parsed = await this.runLlm(conversation.id, messages);
+
+      // Сигналы LLM → детерминированный RulesEngine (docs/14 §2, §5; ADR-011)
+      const signals: EscalationSignals = {
+        confidence: parsed.confidence,
+        wantsHuman: parsed.user_intent_flags?.wants_human === true,
+        complaint: parsed.user_intent_flags?.complaint === true,
+        detectedIntent: parsed.detected_intent || null,
+      };
+      const match = await this.evaluateRules(conversation.id, assistant.id, signals, text);
+
+      if (match?.action === "handoff") {
+        // Прощальная фраза вместо ответа низкой уверенности (docs/14 §5.3)
+        await this.createHandoffSafely(conversation, match);
+        return;
+      }
+      if (match?.action === "fallback_message") {
+        await this.appendFallback(conversation.id, settings.fallbackMessage);
+        return;
+      }
+
       const citations = retrieval.chunks.map((c) => ({
         chunk_id: c.chunkId,
         score: Number(c.cosine.toFixed(4)),
@@ -112,23 +143,87 @@ export class ConversationEngineService {
         citations,
         parsed.confidence,
       );
+      await this.setFallbackStreak(conversation.id, 0);
     } catch (err) {
       this.logger.error(`llm failed: ${String(err)}`);
       // Провайдер недоступен: честное сообщение, без молчания (docs/05 §8)
-      await this.appendAndEmit(
+      await this.handoffs.appendAndPush(
         conversation.id,
         MessageRole.System,
         "Техническая проблема на нашей стороне. Попробуйте повторить запрос через минуту.",
-        undefined,
-        undefined,
       );
     }
+  }
+
+  /**
+   * Ход без LLM (гейт не прошёл / retrieval упал): правила с пустыми сигналами —
+   * keyword/no_answer всё равно проверяются по тексту и счётчику fallbacks.
+   */
+  private async onNoAnswer(
+    conversation: ConversationRow,
+    assistantId: string,
+    settings: EngineSettings,
+    text: string,
+    signals: EscalationSignals,
+  ): Promise<void> {
+    const match = await this.evaluateRules(conversation.id, assistantId, signals, text);
+    if (match?.action === "handoff") {
+      await this.createHandoffSafely(conversation, match);
+      return;
+    }
+    // fallback_message от no_answer неотличим от обычного fallback-хода
+    await this.appendFallback(conversation.id, settings.fallbackMessage);
+  }
+
+  /**
+   * Handoff по правилу выполняется в фоне (после ответа посетителю); конфликт
+   * состояний (оператор уже вмешался) — не ошибка движка, а штатный отказ.
+   */
+  private async createHandoffSafely(
+    conversation: ConversationRow,
+    match: EscalationMatch,
+  ): Promise<void> {
+    try {
+      await this.handoffs.createFromAiActive(conversation, {
+        reason: match.rule.type as HandoffReason,
+        ruleId: match.rule.id ?? null,
+        requestedBy: HandoffRequestedBy.Ai,
+        actorType: "system",
+      });
+    } catch (err) {
+      this.logger.warn(`rule handoff skipped: ${String(err)}`);
+    }
+  }
+
+  private async evaluateRules(
+    conversationId: string,
+    assistantId: string,
+    signals: EscalationSignals,
+    messageText: string,
+  ): Promise<EscalationMatch | null> {
+    const rules = await this.escalations.enabledRules(assistantId);
+    if (rules.length === 0) return null;
+    const streak = Number((await this.conversations.getContext(conversationId)).fallback_streak ?? 0);
+    return evaluateEscalationRules(rules, signals, {
+      messageText,
+      consecutiveFallbacks: streak,
+    });
+  }
+
+  private async appendFallback(conversationId: string, fallbackMessage: string): Promise<void> {
+    await this.appendAndEmit(conversationId, MessageRole.Assistant, fallbackMessage, undefined, undefined);
+    const current = Number((await this.conversations.getContext(conversationId)).fallback_streak ?? 0);
+    await this.conversations.mergeContext(conversationId, { fallback_streak: current + 1 });
+  }
+
+  private async setFallbackStreak(conversationId: string, value: number): Promise<void> {
+    await this.conversations.mergeContext(conversationId, { fallback_streak: value });
   }
 
   private async runLlm(
     conversationId: string,
     messages: ChatMessage[],
-  ): Promise<{ answer: string; confidence: number }> {
+  ): Promise<StructuredAnswer> {
     const llm = await this.providers.llm();
 
     const first = await this.streamOnce(conversationId, llm, messages);

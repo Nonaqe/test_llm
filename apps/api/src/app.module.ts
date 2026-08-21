@@ -15,6 +15,9 @@ import { RagModule } from "./rag/rag.module";
 import { ConversationsModule } from "./conversations/conversations.module";
 import { KnowledgeModule } from "./knowledge/knowledge.module";
 import { AssistantsModule } from "./assistants/assistants.module";
+import { EscalationsModule } from "./escalations/escalations.module";
+import { InboxModule } from "./inbox/inbox.module";
+import { NotificationsModule } from "./notifications/notifications.module";
 import { loadEnv } from "./config/env";
 
 const env = loadEnv();
@@ -53,6 +56,9 @@ const env = loadEnv();
     ConversationsModule,
     KnowledgeModule,
     AssistantsModule,
+    EscalationsModule,
+    InboxModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}

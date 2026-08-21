@@ -34,6 +34,8 @@ export interface WidgetMessageRow {
   created_at: Date;
   citations?: unknown;
   confidence?: number;
+  /** Состояние диалога после записи сообщения (NEW/RESOLVED/CLOSED → AI_ACTIVE) */
+  state_after?: ConversationState;
 }
 
 @Injectable()
@@ -127,7 +129,8 @@ export class ConversationsRepo {
 
   /**
    * Атомарное добавление сообщения: seq = last_seq+1 в транзакции (docs/05 §3).
-   * Первое сообщение переводит NEW → AI_ACTIVE.
+   * Первое сообщение переводит NEW → AI_ACTIVE; сообщение посетителя в
+   * RESOLVED/CLOSED переоткрывает диалог (docs/13 §1 — reopen).
    */
   async appendMessage(
     conversationId: string,
@@ -150,12 +153,22 @@ export class ConversationsRepo {
       const conv = convRows[0] as { last_seq: number; state: ConversationState } | undefined;
       if (!conv) throw new Error(`conversation ${conversationId} not found`);
 
-      if (conv.state === ConversationState.New) {
-        assertTransition(ConversationState.New, ConversationState.AiActive);
+      let stateAfter = conv.state;
+      const reopenFrom: string[] = [ConversationState.New];
+      if (role === MessageRole.Visitor) {
+        // reopen посетителем (docs/13 §1): RESOLVED/CLOSED → AI_ACTIVE
+        reopenFrom.push(ConversationState.Resolved, ConversationState.Closed);
+      }
+      if (
+        reopenFrom.includes(conv.state) &&
+        conv.state !== ConversationState.AiActive
+      ) {
+        assertTransition(conv.state, ConversationState.AiActive);
         await client.query(
           `update conversations set state = 'AI_ACTIVE', updated_at = now() where id = $1`,
           [conversationId],
         );
+        stateAfter = ConversationState.AiActive;
       }
 
       const { rows: msgRows } = await client.query(
@@ -172,7 +185,7 @@ export class ConversationsRepo {
         ],
       );
       await client.query("commit");
-      return msgRows[0] as WidgetMessageRow;
+      return { ...(msgRows[0] as WidgetMessageRow), state_after: stateAfter };
     } catch (err) {
       await client.query("rollback");
       throw err;
@@ -213,6 +226,52 @@ export class ConversationsRepo {
     );
     if (rowCount === 0) throw new Error("state changed concurrently");
   }
+
+  /**
+   * Оптимистичный конкурентный переход (docs/13 «Частые ошибки»: два оператора
+   * на один диалог): UPDATE ... WHERE state = from; null — состояние уже другое.
+   */
+  async conditionalTransition(
+    conversationId: string,
+    from: ConversationState,
+    to: ConversationState,
+  ): Promise<ConversationRow | null> {
+    assertTransition(from, to);
+    if (!this.db) throw new Error("DATABASE_URL не настроен");
+    const { rows } = await this.db.query(
+      `update conversations set state = $2, updated_at = now()
+       where id = $1 and state = $3
+       returning id, project_id, site_id, visitor_id, state, last_seq`,
+      [conversationId, to, from],
+    );
+    return (rows[0] as ConversationRow) ?? null;
+  }
+
+  async setAssignment(conversationId: string, operatorId: string | null): Promise<void> {
+    if (!this.db) throw new Error("DATABASE_URL не настроен");
+    await this.db.query(
+      `update conversations set assigned_operator_id = $2, updated_at = now() where id = $1`,
+      [conversationId, operatorId],
+    );
+  }
+
+  /** Контекст диалога (jsonb): счётчик подряд fallback-ответов и лид-контакты. */
+  async getContext(conversationId: string): Promise<Record<string, unknown>> {
+    if (!this.db) throw new Error("DATABASE_URL не настроен");
+    const { rows } = await this.db.query(
+      `select context from conversations where id = $1 limit 1`,
+      [conversationId],
+    );
+    return (rows[0]?.context as Record<string, unknown> | undefined) ?? {};
+  }
+
+  async mergeContext(conversationId: string, patch: Record<string, unknown>): Promise<void> {
+    if (!this.db) throw new Error("DATABASE_URL не настроен");
+    await this.db.query(
+      `update conversations set context = context || $2::jsonb, updated_at = now() where id = $1`,
+      [conversationId, JSON.stringify(patch)],
+    );
+  }
 }
 
 @Injectable()
@@ -223,13 +282,100 @@ export class HandoffsRepo {
     conversationId: string;
     reason: string;
     requestedBy: "ai" | "visitor" | "operator";
+    ruleId?: string | null;
   }): Promise<string> {
     if (!this.db) throw new Error("DATABASE_URL не настроен");
     const { rows } = await this.db.query<{ id: string }>(
-      `insert into handoffs (conversation_id, reason, requested_by, status)
-       values ($1, $2, $3, 'pending') returning id`,
-      [input.conversationId, input.reason, input.requestedBy],
+      `insert into handoffs (conversation_id, reason, requested_by, status, rule_id)
+       values ($1, $2, $3, 'pending', $4) returning id`,
+      [input.conversationId, input.reason, input.requestedBy, input.ruleId ?? null],
     );
     return rows[0]!.id;
+  }
+
+  /** Последний handoff диалога (для карточки inbox — docs/13 §2). */
+  async findLatestForConversation(conversationId: string): Promise<{
+    id: string;
+    reason: string;
+    requested_by: string;
+    rule_id: string | null;
+    status: string;
+    created_at: Date;
+  } | null> {
+    if (!this.db) throw new Error("DATABASE_URL не настроен");
+    const { rows } = await this.db.query(
+      `select id, reason, requested_by, rule_id, status, created_at
+       from handoffs where conversation_id = $1
+       order by created_at desc limit 1`,
+      [conversationId],
+    );
+    return (rows[0] as {
+      id: string;
+      reason: string;
+      requested_by: string;
+      rule_id: string | null;
+      status: string;
+      created_at: Date;
+    }) ?? null;
+  }
+
+  /** Очередь pending по проектам, FIFO (ждёт дольше всех — первым; docs/13 §2). */
+  async listPendingByProjects(projectIds: string[]): Promise<
+    Array<{
+      id: string;
+      conversation_id: string;
+      project_id: string;
+      reason: string;
+      requested_by: string;
+      rule_id: string | null;
+      created_at: Date;
+      conversation_state: string;
+    }>
+  > {
+    if (!this.db) throw new Error("DATABASE_URL не настроен");
+    if (projectIds.length === 0) return [];
+    const { rows } = await this.db.query(
+      `select h.id, h.conversation_id, c.project_id, h.reason, h.requested_by,
+              h.rule_id, h.created_at, c.state as conversation_state
+       from handoffs h join conversations c on c.id = h.conversation_id
+       where h.status = 'pending' and c.project_id = any($1::uuid[])
+       order by h.created_at asc limit 200`,
+      [projectIds],
+    );
+    return rows as Array<{
+      id: string;
+      conversation_id: string;
+      project_id: string;
+      reason: string;
+      requested_by: string;
+      rule_id: string | null;
+      created_at: Date;
+      conversation_state: string;
+    }>;
+  }
+
+  /**
+   * Перевод статуса последнего pending-handoff диалога. Возвращает id или null,
+   * если pending-записи нет (повторный accept/отмена — идемпотентны).
+   */
+  async resolvePendingForConversation(
+    conversationId: string,
+    status: "accepted" | "resolved" | "cancelled",
+    operatorId?: string | null,
+  ): Promise<string | null> {
+    if (!this.db) throw new Error("DATABASE_URL не настроен");
+    const { rows } = await this.db.query<{ id: string }>(
+      `update handoffs set status = $2, operator_id = coalesce($3, operator_id),
+              accepted_at = case when $2 = 'accepted' then now() else accepted_at end,
+              resolved_at = case when $2 <> 'accepted' then now() else resolved_at end
+       where id = (
+         select id from handoffs
+         where conversation_id = $1 and status = 'pending'
+         order by created_at desc limit 1
+       )
+       returning id`,
+      [conversationId, status, operatorId ?? null],
+    );
+    return rows[0]?.id ?? null;
   }
 }

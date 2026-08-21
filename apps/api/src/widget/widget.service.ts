@@ -1,12 +1,15 @@
 /**
  * Публичная зона виджета (docs/07 §2): init → visitor JWT, диалоги, сообщения
- * с атомарным seq, кэтч-ап after_seq, явный handoff.
- * AI-ответ — ЗАГЛУШКА Фазы 2 (эхо); настоящий Conversation Engine — Фаза 3.
+ * с атомарным seq, кэтч-ап after_seq, явный handoff, офлайн-заявка leave-email.
+ * AI-ход — Conversation Engine; в WAITING_OPERATOR/OPERATOR_ACTIVE движок молчит
+ * (docs/13 «Частые ошибки»), сообщение посетителя в RESOLVED/CLOSED переоткрывает.
  */
 import { Inject, Injectable } from "@nestjs/common";
 import { z } from "zod";
 import {
   ConversationState,
+  HandoffReason,
+  HandoffRequestedBy,
   MessageRole,
   type WidgetConfig,
   type WidgetConversationDto,
@@ -18,7 +21,9 @@ import { AppError } from "../common/http";
 import { EventsRepo } from "../db/repositories";
 import { THROTTLE_STORE, type ThrottleStore } from "../auth/stores";
 import { WidgetGateway } from "../realtime/widget.gateway";
+import { AdminGateway } from "../realtime/admin.gateway";
 import { ConversationEngineService } from "../conversations/conversation-engine.service";
+import { HandoffService } from "../conversations/handoff.service";
 import { matchOrigin } from "./origin";
 import { signVisitorToken } from "./visitor-tokens";
 import { toMessageDto } from "./message-dto";
@@ -30,13 +35,13 @@ import {
   SitesRepo,
   VisitorsRepo,
   type ConversationRow,
-  type WidgetMessageRow,
 } from "./widget.repos";
 
 const LIMITS = {
   initPerMinute: 30,
   conversationsPerHour: 5,
   messagesPerMinute: 10,
+  emailPerMinute: 5,
 } as const;
 
 export const InitSchema = z.object({
@@ -49,19 +54,26 @@ export const SendMessageSchema = z.object({
   text: z.string().min(1).max(4000),
 });
 
+export const LeaveEmailSchema = z.object({
+  email: z.string().email().max(200),
+  name: z.string().min(1).max(200).optional(),
+});
+
 @Injectable()
 export class WidgetService {
-  /** Идемпотентность POST сообщений: key → сообщение (in-memory; Redis — Фаза 4). */
-  private readonly idempotency = new Map<string, { message: WidgetMessageRow; expiresAt: number }>();
+  /** Идемпотентность POST сообщений: key → сообщение (in-memory; Redis — Фаза 7). */
+  private readonly idempotency = new Map<string, { message: import("./widget.repos").WidgetMessageRow; expiresAt: number }>();
 
   constructor(
     private readonly sites: SitesRepo,
     private readonly visitors: VisitorsRepo,
     private readonly conversations: ConversationsRepo,
-    private readonly handoffs: HandoffsRepo,
+    private readonly handoffsRepo: HandoffsRepo,
     private readonly events: EventsRepo,
     private readonly gateway: WidgetGateway,
+    private readonly admin: AdminGateway,
     private readonly engine: ConversationEngineService,
+    private readonly handoffs: HandoffService,
     @Inject(THROTTLE_STORE) private readonly throttle: ThrottleStore,
     @Inject(ENV) private readonly env: Env,
   ) {}
@@ -127,6 +139,12 @@ export class WidgetService {
       entityType: "conversation",
       entityId: conversation.id,
     });
+    // Панель оператора: новый диалог в очереди (docs/07 §4.2)
+    this.admin.emitConversationCreated(visitor.pid, {
+      ...emptyAdminCard(conversation),
+      created_at: new Date().toISOString(),
+    });
+    this.admin.emitQueueUpdated(visitor.pid);
     return toConversationDto(conversation);
   }
 
@@ -186,8 +204,11 @@ export class WidgetService {
     }
 
     this.gateway.emitMessage(conversation.id, toMessageDto(message));
-    if (conversation.state === ConversationState.New) {
-      this.gateway.emitState(conversation.id, ConversationState.AiActive);
+    this.pushAdminMessage(conversation.project_id, message);
+    if (message.state_after && message.state_after !== conversation.state) {
+      // NEW → AI_ACTIVE или reopen RESOLVED/CLOSED → AI_ACTIVE (docs/13 §1)
+      this.gateway.emitState(conversation.id, message.state_after);
+      this.admin.emitStateChanged(conversation.project_id, conversation.id, message.state_after);
     }
     await this.events.append({
       actorType: "visitor",
@@ -198,8 +219,10 @@ export class WidgetService {
       ip,
     });
 
-    // AI-ход: retrieval → гейт → LLM-стрим → structured output (docs/05 §3, Фаза 3)
-    void this.engine.onVisitorMessage(conversation, text);
+    // AI-ход только пока диалог ведёт AI (docs/13: в OPERATOR_ACTIVE движок молчит)
+    if (message.state_after === ConversationState.AiActive) {
+      void this.engine.onVisitorMessage(conversation, text);
+    }
     return toMessageDto(message);
   }
 
@@ -211,52 +234,99 @@ export class WidgetService {
   ): Promise<{ ok: true }> {
     const conversation = await this.getOwnedConversation(conversationId, visitor);
 
-    // NEW → AI_ACTIVE → WAITING_OPERATOR (переходы из NEW только в AI_ACTIVE — docs/13 §1)
+    // NEW → AI_ACTIVE → WAITING_OPERATOR (переходы из NEW только в AI_ACTIVE — docs/13 §1).
+    // Гонка двойного запроса разрешается условным UPDATE: проигравший получит 409 ниже.
     if (conversation.state === ConversationState.New) {
-      await this.conversations.transition(
+      const activated = await this.conversations.conditionalTransition(
         conversation.id,
         ConversationState.New,
         ConversationState.AiActive,
       );
-      this.gateway.emitState(conversation.id, ConversationState.AiActive);
-    }
-    const current =
-      conversation.state === ConversationState.New
-        ? ConversationState.AiActive
-        : conversation.state;
-    if (current !== ConversationState.AiActive) {
-      throw AppError.conflict(
-        "INVALID_STATE_TRANSITION",
-        `Handoff невозможен из состояния ${current}`,
-      );
+      if (activated) {
+        this.gateway.emitState(conversation.id, ConversationState.AiActive);
+        this.admin.emitStateChanged(conversation.project_id, conversation.id, ConversationState.AiActive);
+      }
     }
 
-    await this.handoffs.insertPending({
-      conversationId: conversation.id,
-      reason: "explicit_request",
-      requestedBy: "visitor",
-    });
-    await this.conversations.transition(
-      conversation.id,
-      ConversationState.AiActive,
-      ConversationState.WaitingOperator,
-    );
-    const note = await this.conversations.appendMessage(
-      conversation.id,
-      MessageRole.System,
-      "Диалог передан оператору. Операторская панель подключается в Фазе 4 — сейчас вас обслужит AI-заглушка.",
-    );
-    this.gateway.emitState(conversation.id, ConversationState.WaitingOperator);
-    this.gateway.emitMessage(conversation.id, toMessageDto(note));
-    await this.events.append({
+    await this.handoffs.createFromAiActive(conversation, {
+      reason: HandoffReason.ExplicitRequest,
+      requestedBy: HandoffRequestedBy.Visitor,
       actorType: "visitor",
       actorId: visitor.vid,
-      action: "handoff.requested",
-      entityType: "conversation",
-      entityId: conversation.id,
       ip,
     });
     return { ok: true };
+  }
+
+  /**
+   * Офлайн-заявка (docs/07 §2.3, docs/13 §4): контакты фиксируются в контексте
+   * диалога и events; диалог из WAITING_OPERATOR уходит в RESOLVED.
+   */
+  async leaveEmail(
+    conversationId: string,
+    visitor: { vid: string },
+    input: z.infer<typeof LeaveEmailSchema>,
+    ip: string | null,
+  ): Promise<{ ok: true }> {
+    const attempt = this.throttle.attempt(`w-email:${visitor.vid}`, LIMITS.emailPerMinute, 60);
+    if (!attempt.allowed) throw AppError.rateLimited(attempt.retryAfterS);
+
+    const conversation = await this.getOwnedConversation(conversationId, visitor);
+
+    await this.conversations.mergeContext(conversation.id, {
+      leave_email: input.email,
+      ...(input.name ? { leave_name: input.name } : {}),
+      leave_at: new Date().toISOString(),
+    });
+
+    const confirmation = await this.conversations.appendMessage(
+      conversation.id,
+      MessageRole.System,
+      `Спасибо! Заявка принята${input.name ? `, ${input.name}` : ""}. Мы свяжемся с вами по адресу ${input.email}.`,
+    );
+    this.gateway.emitMessage(conversation.id, toMessageDto(confirmation));
+    this.pushAdminMessage(conversation.project_id, confirmation);
+
+    if (conversation.state === ConversationState.WaitingOperator) {
+      // Офлайн-заявка обработана людьми → RESOLVED (docs/13 §1, §4);
+      // возврат операторов не «воскрешает» диалог автоматически.
+      const updated = await this.conversations.conditionalTransition(
+        conversation.id,
+        ConversationState.WaitingOperator,
+        ConversationState.Resolved,
+      );
+      if (updated) {
+        await this.handoffsRepo.resolvePendingForConversation(conversation.id, "cancelled");
+        this.gateway.emitState(conversation.id, ConversationState.Resolved);
+        this.admin.emitStateChanged(conversation.project_id, conversation.id, ConversationState.Resolved);
+        this.admin.emitQueueUpdated(conversation.project_id);
+      }
+    }
+
+    await this.events.append({
+      actorType: "visitor",
+      actorId: visitor.vid,
+      action: "lead.captured",
+      entityType: "conversation",
+      entityId: conversation.id,
+      payload: { has_name: Boolean(input.name) },
+      ip,
+    });
+    return { ok: true };
+  }
+
+  private pushAdminMessage(projectId: string, message: import("./widget.repos").WidgetMessageRow): void {
+    const dto = toMessageDto(message);
+    this.admin.emitMessage(projectId, {
+      id: dto.id,
+      conversation_id: dto.conversation_id,
+      seq: dto.seq,
+      role: dto.role as MessageRole,
+      content: dto.content,
+      created_at: dto.created_at,
+      citations: dto.citations,
+      confidence: dto.confidence,
+    });
   }
 
   private widgetConfig(raw: Record<string, unknown>): WidgetConfig {
@@ -273,7 +343,27 @@ export class WidgetService {
   }
 }
 
-
+function emptyAdminCard(conversation: ConversationRow): {
+  id: string;
+  project_id: string;
+  site_id: string;
+  state: ConversationState;
+  assigned_operator_id: string | null;
+  last_seq: number;
+  last_message_at: string | null;
+  handoff: null;
+} {
+  return {
+    id: conversation.id,
+    project_id: conversation.project_id,
+    site_id: conversation.site_id,
+    state: conversation.state,
+    assigned_operator_id: null,
+    last_seq: conversation.last_seq,
+    last_message_at: null,
+    handoff: null,
+  };
+}
 
 function toConversationDto(row: ConversationRow): WidgetConversationDto {
   return { id: row.id, state: row.state, last_seq: row.last_seq };

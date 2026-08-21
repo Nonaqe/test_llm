@@ -2,6 +2,7 @@
  * Socket.IO gateway, namespace /widget (docs/07 §4.1).
  * Handshake — visitor JWT (handshake.auth.token); комната conversation:{id}
  * присоединяется после проверки владения диалогом.
+ * Фаза 4: typing-релей операторам, presence при join.
  */
 import {
   SubscribeMessage,
@@ -16,6 +17,8 @@ import { ConversationState } from "@uni-chat/shared";
 import { ENV, type Env } from "../config/env";
 import { verifyVisitorToken, type VisitorPayload } from "../widget/visitor-tokens";
 import { ConversationsRepo } from "../widget/widget.repos";
+import { AdminGateway } from "./admin.gateway";
+import { PresenceService } from "./presence.service";
 
 export function conversationRoom(conversationId: string): string {
   return `conversation:${conversationId}`;
@@ -38,6 +41,8 @@ export class WidgetGateway implements OnGatewayConnection {
   constructor(
     @Inject(ENV) private readonly env: Env,
     private readonly conversations: ConversationsRepo,
+    private readonly admin: AdminGateway,
+    private readonly presence: PresenceService,
   ) {}
 
   async handleConnection(client: WidgetClient): Promise<void> {
@@ -63,15 +68,27 @@ export class WidgetGateway implements OnGatewayConnection {
       return { ok: false, error: "not_found" }; // не раскрываем существование (docs/15)
     }
     await client.join(conversationRoom(conversation.id));
+    // Статус «оператор онлайн» на момент входа (docs/13 §5)
+    client.emit("presence:operators", { online: this.presence.isOnline(conversation.project_id) });
     return { ok: true };
   }
 
-  /** Typing-события принимаются; релей операторам — Фаза 4 (namespace /admin). */
+  /** Typing посетителя → релей операторам проекта (docs/07 §4.2 visitor:typing). */
   @SubscribeMessage("widget:typing:start")
-  handleTypingStart(): void {}
+  async handleTypingStart(
+    client: WidgetClient,
+    body: { conversation_id: string },
+  ): Promise<void> {
+    if (!client.visitor || !body?.conversation_id) return;
+    const conversation = await this.conversations.findById(body.conversation_id);
+    if (!conversation || conversation.visitor_id !== client.visitor.vid) return;
+    this.admin.emitVisitorTyping(conversation.project_id, conversation.id);
+  }
 
   @SubscribeMessage("widget:typing:stop")
-  handleTypingStop(): void {}
+  handleTypingStop(): void {
+    // TTL индикатора — на клиенте оператора; отдельное событие не требуется
+  }
 
   emitMessage(conversationId: string, message: WidgetMessageDto): void {
     this.server.to(conversationRoom(conversationId)).emit("message", message);
@@ -86,5 +103,10 @@ export class WidgetGateway implements OnGatewayConnection {
     this.server
       .to(conversationRoom(conversationId))
       .emit("conversation:state", { conversation_id: conversationId, state });
+  }
+
+  /** Индикатор «оператор набирает…» (docs/13 §5). */
+  emitOperatorTyping(conversationId: string): void {
+    this.server.to(conversationRoom(conversationId)).emit("operator:typing");
   }
 }
