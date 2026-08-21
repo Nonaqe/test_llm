@@ -7,5 +7,6 @@ import { SettingsService } from "./settings.service";
   imports: [AuthModule],
   controllers: [SettingsController],
   providers: [SettingsService],
+  exports: [SettingsService],
 })
 export class SettingsModule {}
