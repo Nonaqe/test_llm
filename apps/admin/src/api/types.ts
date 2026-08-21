@@ -1,5 +1,5 @@
 /**
- * Локальные контракты Admin-API для прототипа inbox (Фаза 4, docs/30 «Admin-часть inbox»).
+ * Локальные контракты Admin-API (Фаза 4 inbox + Фаза 5 полная панель, docs/30 §Ф5).
  * По заданию типы определены локально; формы совпадают с ответами сервера
  * (конверт {data:...} / {error:{code,message,details}}, docs/07_API.md §1, §5).
  */
@@ -125,4 +125,250 @@ export interface AdminServerToClientEvents {
   }) => void;
   "queue:updated": (payload: { project_id: string }) => void;
   "operator:presence": (payload: { project_id: string; online_count: number }) => void;
+}
+
+// ===========================================================================
+// Фаза 5 — полная админ-панель (docs/30 §Ф5, docs/22_ADMIN_GUIDE.md)
+// Контракты сверены с контроллерами apps/api/src (источник истины).
+// Endpoints sites/analytics/sandbox добавляются параллельно на бэкенде —
+// страницы деградируют в пустое состояние при 404.
+// ===========================================================================
+
+// --- Пользователи установки (apps/api/src/users/users.controller.ts) ---
+
+/** Строка GET /users (UsersRepo.listAll) и ответ POST /users. */
+export interface AdminUser {
+  id: string;
+  email: string;
+  name: string;
+  installation_role: string | null;
+}
+
+export interface CreateUserInput {
+  email: string;
+  password: string;
+  name?: string;
+  installation_role?: "owner" | "admin" | null;
+}
+
+// --- Проекты (apps/api/src/projects/projects.controller.ts) ---
+
+export interface ProjectDetail {
+  id: string;
+  name: string;
+  created_at?: string;
+}
+
+export interface AddMemberInput {
+  user_id?: string;
+  email?: string;
+  project_role: "project_admin" | "operator";
+}
+
+// --- Сайты (REST sites: GET/POST /projects/:id/sites, PATCH /sites/:sid,
+// POST /sites/:sid/regenerate-key; таблица sites — apps/api/migrations/0002) ---
+
+/** WidgetConfig из packages/shared/src/index.ts (+ расширения без ломки контракта). */
+export interface SiteWidgetConfig {
+  locale?: string;
+  theme?: {
+    accent?: string;
+    position?: "right" | "left";
+  };
+  greeting?: string;
+}
+
+export interface SiteDto {
+  id: string;
+  project_id: string;
+  name: string;
+  domain: string;
+  allowed_origins: string[];
+  widget_public_key: string;
+  widget_config: SiteWidgetConfig;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CreateSiteInput {
+  name: string;
+  domain: string;
+  allowed_origins?: string[];
+  widget_config?: SiteWidgetConfig;
+}
+
+export interface UpdateSiteInput {
+  name?: string;
+  domain?: string;
+  allowed_origins?: string[];
+  widget_config?: SiteWidgetConfig;
+  is_active?: boolean;
+}
+
+// --- Ассистент (apps/api/src/assistants/assistants.controller.ts, AssistantsRepo) ---
+
+export interface AssistantDto {
+  id: string;
+  project_id: string;
+  name: string;
+  locale: string;
+  tone: string;
+  company_description: string;
+  custom_instructions: string;
+  retrieval_settings: {
+    top_k?: number;
+    score_threshold?: number;
+    history_depth?: number;
+  };
+  safety_settings: {
+    denied_topics?: string[];
+    fallback_message?: string;
+  };
+  widget_texts: { greeting?: string };
+}
+
+export interface UpdateAssistantInput {
+  name?: string;
+  locale?: string;
+  tone?: string;
+  company_description?: string;
+  custom_instructions?: string;
+  retrieval_settings?: {
+    top_k?: number;
+    score_threshold?: number;
+    history_depth?: number;
+  };
+  safety_settings?: {
+    denied_topics?: string[];
+    fallback_message?: string;
+  };
+  widget_texts?: { greeting?: string };
+}
+
+// --- Правила эскалации (apps/api/src/escalations/escalations.controller.ts) ---
+
+export type EscalationRuleTypeValue =
+  | "explicit_request"
+  | "low_confidence"
+  | "keyword"
+  | "intent"
+  | "complaint"
+  | "no_answer";
+
+export type EscalationActionValue = "handoff" | "fallback_message";
+
+/** EscalationRuleDto из packages/shared/src/index.ts. */
+export interface EscalationRuleDto {
+  id: string;
+  assistant_id: string;
+  priority: number;
+  type: EscalationRuleTypeValue;
+  params: Record<string, unknown>;
+  action: EscalationActionValue;
+  enabled: boolean;
+}
+
+export interface CreateRuleInput {
+  priority: number;
+  type: EscalationRuleTypeValue;
+  params?: Record<string, unknown>;
+  action?: EscalationActionValue;
+  enabled?: boolean;
+}
+
+export interface UpdateRuleInput {
+  priority?: number;
+  type?: EscalationRuleTypeValue;
+  params?: Record<string, unknown>;
+  action?: EscalationActionValue;
+  enabled?: boolean;
+}
+
+// --- Знания (apps/api/src/knowledge/knowledge.controller.ts, DocumentsRepo) ---
+
+export type DocumentStatusValue = "pending" | "parsing" | "indexing" | "ready" | "failed";
+
+export interface KnowledgeDocumentDto {
+  id: string;
+  project_id: string;
+  source_type: "upload" | "url" | "text";
+  title: string;
+  mime: string | null;
+  size_bytes: number | null;
+  status: DocumentStatusValue;
+  error: string | null;
+  version: number;
+}
+
+export interface FaqDto {
+  id: string;
+  project_id: string;
+  question: string;
+  answer: string;
+  enabled: boolean;
+}
+
+export interface UpdateFaqInput {
+  question?: string;
+  answer?: string;
+  enabled?: boolean;
+}
+
+// --- Аналитика (GET /projects/:id/analytics?days=N — apps/api/src/projects/
+// analytics.controller.ts + analytics.repo.ts; DTO = ProjectAnalyticsDto из
+// packages/shared) ---
+
+export interface AnalyticsDayPoint {
+  /** YYYY-MM-DD */
+  date: string;
+  conversations: number;
+  messages: number;
+  handoffs: number;
+}
+
+export interface AnalyticsLowRelevanceItem {
+  text: string;
+  count: number;
+}
+
+export interface ProjectAnalyticsDto {
+  days: AnalyticsDayPoint[];
+  totals: {
+    conversations: number;
+    handoffs: number;
+    /** handoffs/conversations; null при нулевом числе диалогов. */
+    handoff_rate: number | null;
+    /** Доля диалогов без записей handoffs; null при нулевом числе диалогов. */
+    ai_resolved_share: number | null;
+    /** Среднее время первого ответа ассистента, мс; null если данных нет. */
+    avg_first_response_ms: number | null;
+  };
+  low_relevance_top: AnalyticsLowRelevanceItem[];
+}
+
+// --- Песочница (POST /projects/:id/sandbox/messages {text} → {answer};
+// SandboxAnswerDto из packages/shared) ---
+
+export interface SandboxAnswer {
+  text: string;
+  citations?: Array<{ chunk_id: string; score: number }>;
+  /** Самооценка LLM 0..1; null на fallback-ходе (LLM не вызывался). */
+  confidence?: number | null;
+  fallback?: boolean;
+}
+
+// --- Настройки установки (apps/api/src/settings/settings.controller.ts) ---
+
+export interface PublicSetting {
+  key: string;
+  is_secret: boolean;
+  /** Для секретов значение маскируется ({masked:true}) — docs/15 §3. */
+  value: unknown;
+}
+
+export interface AiProviderCheckResult {
+  ok: boolean;
+  kind?: string;
+  error?: string;
 }
