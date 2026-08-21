@@ -42,6 +42,17 @@ export class KnowledgeService {
     }
     const kind = detectKind(input.filename, input.mime);
     if (!kind) throw new Error(`UNSUPPORTED_TYPE: ${input.filename}`);
+    // Magic bytes для бинарных форматов (docs/15 §3): тип определяется не
+    // расширением, а содержимым — переименованный файл отсеивается сразу
+    if (kind === "pdf" && !input.buffer.subarray(0, 5).toString("latin1").startsWith("%PDF-")) {
+      throw new Error(`UNSUPPORTED_TYPE: ${input.filename} (нет %PDF-заголовка)`);
+    }
+    if (
+      kind === "docx" &&
+      input.buffer.subarray(0, 4).toString("latin1") !== "PK\u0003\u0004"
+    ) {
+      throw new Error(`UNSUPPORTED_TYPE: ${input.filename} (не ZIP/OOXML)`);
+    }
     const checksum = createHash("sha256").update(input.buffer).digest("hex");
     const doc = await this.documents.insert({
       projectId: input.projectId,
