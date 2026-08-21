@@ -18,6 +18,7 @@ import { AssistantsModule } from "./assistants/assistants.module";
 import { EscalationsModule } from "./escalations/escalations.module";
 import { InboxModule } from "./inbox/inbox.module";
 import { NotificationsModule } from "./notifications/notifications.module";
+import { BackupsModule } from "./backups/backups.module";
 import { loadEnv } from "./config/env";
 
 const env = loadEnv();
@@ -59,6 +60,7 @@ const env = loadEnv();
     EscalationsModule,
     InboxModule,
     NotificationsModule,
+    BackupsModule,
   ],
 })
 export class AppModule {}

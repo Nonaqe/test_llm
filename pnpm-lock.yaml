@@ -108,6 +108,9 @@ importers:
       nestjs-pino:
         specifier: ^4.2.0
         version: 4.6.1(@nestjs/common@10.4.22(reflect-metadata@0.2.2)(rxjs@7.8.2))(pino-http@10.5.0)(pino@9.14.0)(rxjs@7.8.2)
+      nodemailer:
+        specifier: ^9.0.5
+        version: 9.0.5
       pdfjs-dist:
         specifier: ^4.10.38
         version: 4.10.38
@@ -157,6 +160,9 @@ importers:
       '@types/node':
         specifier: ^22.10.2
         version: 22.20.1
+      '@types/nodemailer':
+        specifier: ^8.0.1
+        version: 8.0.1
       '@types/pg':
         specifier: ^8.11.10
         version: 8.21.0
@@ -180,7 +186,7 @@ importers:
         version: 5.9.3
       unplugin-swc:
         specifier: ^1.5.1
-        version: 1.5.11(@swc/core@1.16.0)(esbuild@0.28.2)(rollup@4.62.4)(vite@6.4.3(@types/node@22.20.1)(tsx@4.23.12))
+        version: 1.5.11(@swc/core@1.16.0)(esbuild@0.28.2)(rollup@4.62.4)(vite@5.4.21(@types/node@22.20.1))
       vitest:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.1)
@@ -206,7 +212,13 @@ importers:
       '@uni-chat/shared':
         specifier: workspace:*
         version: link:../shared
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
     devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.1
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -1444,6 +1456,9 @@ packages:
   '@types/node@22.20.1':
     resolution: {integrity: sha512-EANqOCF9QFyra+4pfxUcX9STKJpCLjMbObVzljIJomAWSnuSIEAvyzEU53GaajbXJEgdh0iEcPL+DGvpUd4k1Q==}
 
+  '@types/nodemailer@8.0.1':
+    resolution: {integrity: sha512-PxpaInm8V1JQDd4j0ds5HfvWQk8JupS1C0Picb96QJsrrRDjBH+DlK7L4ZdNSqNULhiZRQHc40nLVShaGxXAMw==}
+
   '@types/pg@8.21.0':
     resolution: {integrity: sha512-AYdtudzabjLZgVgRZmAnU8bAnVUXzuJX2IYHeSIiIHm68olD+LgQYCGWdtcNYnP0uq9c4S4NibVG3Ni7VbKW7Q==}
 
@@ -2433,6 +2448,10 @@ packages:
   node-releases@2.0.53:
     resolution: {integrity: sha512-D9UOmYG3UH1V+ENW56t5QXBwJw1YEY18ruVeus89Rw+SyIgjPkCO84bRzO3uNIYosJbNwiabWVn48o3uJLjxFQ==}
     engines: {node: '>=18'}
+
+  nodemailer@9.0.5:
+    resolution: {integrity: sha512-wvjiKvjczmsN7U/8006JOdXubgBk2XFAbioDMbT+sM7cPs0QrhJTa6KBRX7P5REGGkDcLUz/EarWidb8G8C1jQ==}
+    engines: {node: '>=6.0.0'}
 
   notepack.io@3.0.1:
     resolution: {integrity: sha512-TKC/8zH5pXIAMVQio2TvVDTtPRX+DJPHDqjRbxogtFiByHyzKmy96RA0JtCQJ+WouyyL4A10xomQzgbUT+1jCg==}
@@ -4128,6 +4147,10 @@ snapshots:
     dependencies:
       undici-types: 6.21.0
 
+  '@types/nodemailer@8.0.1':
+    dependencies:
+      '@types/node': 22.20.1
+
   '@types/pg@8.21.0':
     dependencies:
       '@types/node': 22.20.1
@@ -5249,6 +5272,8 @@ snapshots:
 
   node-releases@2.0.53: {}
 
+  nodemailer@9.0.5: {}
+
   notepack.io@3.0.1: {}
 
   object-assign@4.1.1: {}
@@ -5881,12 +5906,12 @@ snapshots:
 
   unpipe@1.0.0: {}
 
-  unplugin-swc@1.5.11(@swc/core@1.16.0)(esbuild@0.28.2)(rollup@4.62.4)(vite@6.4.3(@types/node@22.20.1)(tsx@4.23.12)):
+  unplugin-swc@1.5.11(@swc/core@1.16.0)(esbuild@0.28.2)(rollup@4.62.4)(vite@5.4.21(@types/node@22.20.1)):
     dependencies:
       '@rollup/pluginutils': 5.4.0(rollup@4.62.4)
       '@swc/core': 1.16.0
       load-tsconfig: 0.2.5
-      unplugin: 3.3.0(esbuild@0.28.2)(rollup@4.62.4)(vite@6.4.3(@types/node@22.20.1)(tsx@4.23.12))
+      unplugin: 3.3.0(esbuild@0.28.2)(rollup@4.62.4)(vite@5.4.21(@types/node@22.20.1))
     transitivePeerDependencies:
       - '@farmfe/core'
       - '@rspack/core'
@@ -5898,7 +5923,7 @@ snapshots:
       - vite
       - webpack
 
-  unplugin@3.3.0(esbuild@0.28.2)(rollup@4.62.4)(vite@6.4.3(@types/node@22.20.1)(tsx@4.23.12)):
+  unplugin@3.3.0(esbuild@0.28.2)(rollup@4.62.4)(vite@5.4.21(@types/node@22.20.1)):
     dependencies:
       '@jridgewell/remapping': 2.3.5
       picomatch: 4.0.5
@@ -5906,7 +5931,7 @@ snapshots:
     optionalDependencies:
       esbuild: 0.28.2
       rollup: 4.62.4
-      vite: 6.4.3(@types/node@22.20.1)(tsx@4.23.12)
+      vite: 5.4.21(@types/node@22.20.1)
 
   update-browserslist-db@1.3.1(browserslist@4.28.8):
     dependencies:

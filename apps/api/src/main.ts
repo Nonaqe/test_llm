@@ -5,6 +5,7 @@ import { AppModule } from "./app.module";
 import { loadEnv } from "./config/env";
 import { configureApp } from "./common/app-setup";
 import { RedisIoAdapter } from "./realtime/redis-io.adapter";
+import { registerRedisPubClient } from "./realtime/redis-clients";
 
 async function bootstrap(): Promise<void> {
   const env = loadEnv();
@@ -20,6 +21,8 @@ async function bootstrap(): Promise<void> {
     const pub = createClient({ url: env.REDIS_URL });
     const sub = pub.duplicate();
     await Promise.all([pub.connect(), sub.connect()]);
+    // Для диагностики: «Redis инициализирован в этом процессе» (docs/30 §Ф7)
+    registerRedisPubClient(pub);
     app.useWebSocketAdapter(new RedisIoAdapter(app, pub, sub));
   }
 
