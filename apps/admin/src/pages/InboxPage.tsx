@@ -300,9 +300,8 @@ export function InboxPage() {
   const canAssign = state === "OPERATOR_ACTIVE";
 
   // --- Realtime /admin (docs/07 §4.2) ---
-  // Пока ADMIN_SOCKET_ENABLED=false (TBD: access_token недоступен из JS — см.
-  // src/api/socket.ts), события не приходят; списки обновляются кнопкой
-  // «Обновить» и после действий оператора. Код ниже включается флагом.
+  // Подключение по httpOnly-cookie (withCredentials): сервер принимает JWT
+  // из cookie handshake — токен из тела login не нужен.
   const projectIdRef = useRef<string | null>(null);
   projectIdRef.current = projectId;
   const selectedIdRef = useRef<string | null>(null);
@@ -310,12 +309,8 @@ export function InboxPage() {
 
   useEffect(() => {
     if (!ADMIN_SOCKET_ENABLED) return;
-    // TBD: передать сюда access_token из тела ответа login, когда сервер начнёт
-    // его возвращать (сейчас httpOnly-cookie, JS недоступен).
-    const accessToken: string | null = null;
-    if (accessToken === null) return;
 
-    const socket: AdminSocket = connectAdminSocket(accessToken);
+    const socket: AdminSocket = connectAdminSocket();
     const refreshAll = (): void => {
       void loadConversations();
       void loadPendingHandoffs();

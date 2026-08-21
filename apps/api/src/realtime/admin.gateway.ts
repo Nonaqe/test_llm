@@ -1,6 +1,8 @@
 /**
  * Socket.IO gateway, namespace /admin (docs/07 §4.2).
- * Handshake — access JWT (handshake.auth.token); комнаты admin:project:{id}
+ * Handshake — access JWT из handshake.auth.token ЛИБО из httpOnly-cookie
+ * `unichat_access` (браузер не имеет доступа к телу login, но cookie уходит
+ * с websocket-handshake при withCredentials); комнаты admin:project:{id}
  * открываются только после проверки UseInbox (docs/15 §2).
  */
 import { SubscribeMessage, WebSocketGateway, WebSocketServer, OnGatewayConnection, OnGatewayDisconnect } from "@nestjs/websockets";
@@ -17,6 +19,7 @@ import { canProject, Permission, type Principal } from "@uni-chat/core";
 import { ENV, type Env } from "../config/env";
 import { UsersPrincipalLoader } from "../auth/principal-loader";
 import { verifyAccessToken } from "../auth/tokens";
+import { SESSION_COOKIE } from "../auth/jwt-auth.guard";
 import { PresenceService } from "./presence.service";
 
 export function adminProjectRoom(projectId: string): string {
@@ -44,7 +47,8 @@ export class AdminGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {}
 
   async handleConnection(client: AdminClient): Promise<void> {
-    const token = (client.handshake.auth as { token?: string }).token;
+    const authToken = (client.handshake.auth as { token?: string }).token;
+    const token = authToken ?? this.tokenFromCookie(client.handshake.headers.cookie);
     const payload = token ? verifyAccessToken(token, this.env.APP_SECRET ?? "") : null;
     if (!payload) {
       client.disconnect(true);
@@ -55,6 +59,19 @@ export class AdminGateway implements OnGatewayConnection, OnGatewayDisconnect {
     } catch {
       client.disconnect(true);
     }
+  }
+
+  /** JWT из cookie-заголовка handshake (SESSION_COOKIE=httpOnly, JS недоступна). */
+  private tokenFromCookie(header: string | undefined): string | null {
+    if (!header) return null;
+    for (const part of header.split(";")) {
+      const eq = part.indexOf("=");
+      if (eq === -1) continue;
+      if (part.slice(0, eq).trim() === SESSION_COOKIE) {
+        return part.slice(eq + 1).trim();
+      }
+    }
+    return null;
   }
 
   /** TTL-presence истекает сам; явный disconnect ускоряет (MVP — без учёта нескольких сокетов). */
