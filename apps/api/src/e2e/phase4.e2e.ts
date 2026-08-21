@@ -424,7 +424,9 @@ describe.skipIf(!DB_URL)("e2e: эскалация и операторы (Фаз�
     });
 
     const subscribed = await new Promise<{ ok: boolean; error?: string }>((resolve, reject) => {
-      socket.io.on("open", () => {
+      // 'connect' (не transport-'open'): сервер успевает выполнить async
+      // handleConnection и установить principal — иначе подписка даёт bad_request
+      socket.on("connect", () => {
         socket.emit(
           "admin:subscribe_project",
           { project_id: projectId },

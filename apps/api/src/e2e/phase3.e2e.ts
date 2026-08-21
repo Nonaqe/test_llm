@@ -163,7 +163,8 @@ describe.skipIf(!DB_URL)("e2e: AI + Knowledge (Фаза 3)", () => {
     const aiTokens: string[] = [];
     socket.on("ai_token", (p: { token: string }) => aiTokens.push(p.token));
     await new Promise<void>((resolve, reject) => {
-      socket.io.on("open", () =>
+      // 'connect' (не transport-'open'): ждём завершения async handleConnection
+      socket.on("connect", () =>
         socket.emit("widget:join", { conversation_id: conversationId }, () => resolve()),
       );
       socket.on("connect_error", reject);
