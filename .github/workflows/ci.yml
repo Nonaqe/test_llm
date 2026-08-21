@@ -56,7 +56,7 @@ jobs:
         env:
           DATABASE_URL: postgres://unichat:unichat@localhost:5432/unichat
 
-      - name: E2E Phase 1-4 (auth/RBAC/settings, widget/realtime, AI/RAG, эскалация против реальной БД)
+      - name: E2E Phase 1-5 (auth/RBAC/settings, widget/realtime, AI/RAG, эскалация, sites/analytics против реальной БД)
         run: pnpm --filter @uni-chat/api test
         env:
           DATABASE_URL: postgres://unichat:unichat@localhost:5432/unichat
