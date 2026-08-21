@@ -48,12 +48,15 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Bootstrap smoke (DI-граф AppModule без БД — docs/18 §5)
+        run: pnpm --filter @uni-chat/api smoke
+
       - name: Migrations on clean DB (docs/06 §8)
         run: node apps/api/dist/migrate.js
         env:
           DATABASE_URL: postgres://unichat:unichat@localhost:5432/unichat
 
-      - name: E2E Phase 1 (auth/RBAC/settings против реальной БД)
+      - name: E2E Phase 1-4 (auth/RBAC/settings, widget/realtime, AI/RAG, эскалация против реальной БД)
         run: pnpm --filter @uni-chat/api test
         env:
           DATABASE_URL: postgres://unichat:unichat@localhost:5432/unichat
