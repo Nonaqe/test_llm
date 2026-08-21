@@ -55,6 +55,9 @@ export class UniChatWidgetElement extends HTMLElement {
   private booted = false;
   /** Live-пузырь стриминга AI (ai_token); заменяется финальным message (docs/05 §6) */
   private liveBubble: HTMLElement | null = null;
+  /** Операторы онлайн у проекта (presence:operators — docs/13 §5) */
+  private operatorsOnline = false;
+  private operatorTypingTimer: ReturnType<typeof setTimeout> | null = null;
 
   // DOM-ссылки
   private refs: {
@@ -223,6 +226,8 @@ export class UniChatWidgetElement extends HTMLElement {
       onMessage: (m) => this.handleIncoming(m),
       onState: (p) => this.handleState(p.state),
       onAiToken: (p) => this.handleAiToken(p.token),
+      onPresence: (p) => this.handlePresence(p.online),
+      onOperatorTyping: () => this.handleOperatorTyping(),
       onConnect: () => {
         this.setDot(true);
         this.stopPolling();
@@ -309,6 +314,23 @@ export class UniChatWidgetElement extends HTMLElement {
     if (state === "WAITING_OPERATOR" || state === "OPERATOR_ACTIVE") {
       this.setStatus("custom", new Error(this.strings.waitingOperator));
     }
+  }
+
+  /** Статус «оператор онлайн» — цветной индикатор в шапке (docs/13 §5). */
+  private handlePresence(online: boolean): void {
+    this.operatorsOnline = online;
+    this.refs?.dot.classList.toggle("operator", online);
+  }
+
+  /** «Оператор набирает…»: тот же индикатор точек, авто-скрытие через 5 с. */
+  private handleOperatorTyping(): void {
+    const refs = this.refs;
+    if (!refs) return;
+    refs.typing.classList.add("visible");
+    if (this.operatorTypingTimer) clearTimeout(this.operatorTypingTimer);
+    this.operatorTypingTimer = setTimeout(() => {
+      refs.typing.classList.remove("visible");
+    }, 5000);
   }
 
   private async catchUp(): Promise<void> {
@@ -453,6 +475,8 @@ export class UniChatWidgetElement extends HTMLElement {
 
   private destroyInternals(): void {
     this.stopPolling();
+    if (this.operatorTypingTimer) clearTimeout(this.operatorTypingTimer);
+    this.operatorTypingTimer = null;
     this.socket?.close();
     this.socket = null;
     this.messages.clear();

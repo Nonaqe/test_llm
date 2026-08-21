@@ -9,6 +9,10 @@ export interface SocketHandlers {
   onMessage: (message: WidgetMessageDto) => void;
   onState: (payload: { conversation_id: string; state: string }) => void;
   onAiToken: (payload: { token: string }) => void;
+  /** Есть ли операторы онлайн у проекта (docs/07 §4.1, docs/13 §5) */
+  onPresence: (payload: { online: boolean }) => void;
+  /** Оператор набирает ответ (TTL на клиенте) */
+  onOperatorTyping: () => void;
   onConnect: () => void;
   onDisconnect: () => void;
 }
@@ -24,6 +28,8 @@ export class WidgetSocket {
     this.socket.on("message", handlers.onMessage);
     this.socket.on("conversation:state", handlers.onState);
     this.socket.on("ai_token", handlers.onAiToken);
+    this.socket.on("presence:operators", handlers.onPresence);
+    this.socket.on("operator:typing", () => handlers.onOperatorTyping());
     this.socket.on("connect", handlers.onConnect);
     this.socket.on("disconnect", handlers.onDisconnect);
   }

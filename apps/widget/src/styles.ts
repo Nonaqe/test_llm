@@ -73,6 +73,8 @@ export const WIDGET_STYLES = `
     background: #9ca3af; flex: none;
   }
   header .dot.on { background: #34d399; }
+  /* Операторы онлайн (presence:operators) — синий оттенок поверх статуса соединения */
+  header .dot.operator { box-shadow: 0 0 0 2px #60a5fa; }
   header .title { flex: 1; font-weight: 600; font-size: 14px; }
   header button {
     background: none; border: none; cursor: pointer;
