@@ -32,7 +32,10 @@ interface AdminClient extends Socket {
 
 @WebSocketGateway({
   namespace: "/admin",
-  cors: { origin: true, credentials: true },
+  // Cookie-аутентификация handshake: CORS-рефлексия произвольного origin с
+  // credentials позволила бы чужому сайту открыть сокет с cookie админа.
+  // Панель всегда same-origin (prod) либо за прокси dev — CORS не нужен.
+  cors: { credentials: true },
 })
 export class AdminGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(AdminGateway.name);
