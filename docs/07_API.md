@@ -29,7 +29,7 @@ related:
 - Rate limits.
 - Версионирование.
 
-Статус реализации привязан к фазам (журнал — DOC-031): строки таблиц без пометки реализованы в Ф1–Ф4; пометка «спецификация» — контракт на будущую фазу.
+Статус реализации привязан к фазам (журнал — DOC-031): строки таблиц без пометки реализованы в Ф1–Ф5; пометка «спецификация» — контракт на будущую фазу.
 
 ## 1. Принципы
 
@@ -120,12 +120,13 @@ Authorization: Bearer <visitor_token>
 |---|---|
 | Auth | `POST /auth/login`, `POST /auth/logout`, `POST /auth/refresh`, `GET /auth/me` |
 | Проекты | `GET/POST/PATCH /projects`; `GET/POST/PATCH /projects/:id/members` |
-| Сайты | `GET/POST/PATCH /projects/:id/sites` (+ regen ключа: `POST /sites/:id/regen-key`) — спецификация; REST для сайтов ещё не реализован (на момент Ф4) |
+| Сайты | `GET/POST /projects/:id/sites`; `PATCH /sites/:sid`; `POST /sites/:sid/regenerate-key` (новый 24-байтный base64url-ключ, старый инвалидируется; события `site.*`; пустой PATCH → 422) — реализовано в Ф5 (IR-040) |
 | Ассистент | `GET/PATCH /projects/:id/assistant` (персона, тон, retrieval_settings, safety_settings, widget_texts; реализовано в Ф3); rules: `GET/POST /projects/:id/assistant/rules`, `PATCH/DELETE .../rules/:ruleId` (реализовано в Ф4; занятый priority → 409 `RULE_PRIORITY_TAKEN`; дефолтный набор создаётся при первом обращении — ensureDefaults) |
 | Знания | `POST /projects/:id/knowledge/documents` (multipart), `GET .../documents`, `POST .../documents/:docId/reindex`, `DELETE .../documents/:docId`, `POST /projects/:id/knowledge/urls`, `POST /projects/:id/knowledge/texts`, `GET/POST/PUT/DELETE /projects/:id/knowledge/faqs` |
 | Диалоги | `GET /projects/:id/conversations?state=&cursor=` (фильтр state, offset-курсор), `GET /conversations/:id` (карточка с причиной handoff), `POST /conversations/:id/accept\|assign\|return-to-ai\|close\|reopen`, `GET/POST /conversations/:id/messages` (ответ role=operator только в OPERATOR_ACTIVE; заметки role=note виджету не отдаются) — реализовано в Ф4 |
 | Очередь | `GET /handoffs?status=pending` (FIFO, только доступные оператору проекты) — реализовано в Ф4 |
-| Аналитика | `GET /projects/:id/analytics/overview` — спецификация (Фаза 5) |
+| Аналитика | `GET /projects/:id/analytics?days=N` (clamp 1..90: ряды conversations/messages/handoffs по дням, totals — handoff_rate, ai_resolved_share, avg_first_response_ms, low_relevance_top) — реализовано в Ф5 (IR-041) |
+| Песочница | `POST /projects/:id/sandbox/messages` — тестовый ход движка (retrieval→гейт→LLM) без записи в БД; `fallback:true` на гейт-фолбэке, ошибка провайдера → 502 `AI_PROVIDER_ERROR` — реализовано в Ф5 (IR-042) |
 | Команда | `GET/POST /users` |
 | Настройки | `GET /settings` (секреты маскируются); `PUT /settings/:key`; `POST /settings/ai-provider/check` — тест провайдера (Ф3) |
 
@@ -218,6 +219,7 @@ POST /api/v1/conversations/0192a1b2-.../return-to-ai
 | `FORBIDDEN_PROJECT` | 403 | admin: чужой проект |
 | `INVALID_STATE_TRANSITION` | 409 | admin |
 | `RULE_PRIORITY_TAKEN` | 409 | admin: правило с таким priority уже есть у ассистента |
+| `AI_PROVIDER_ERROR` | 502 | admin (песочница): AI-провайдер недоступен или вернул ошибку |
 | `IDEMPOTENCY_CONFLICT` | 409 | повторный ключ с другим телом |
 | `VALIDATION_FAILED` | 422 | обе |
 | `LOGIN_LOCKED` | 429 | auth: brute-force защита |
