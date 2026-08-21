@@ -3,7 +3,7 @@
  * (пузыри, цитаты-чипы, бейдж confidence, плашка fallback).
  * POST /projects/:id/sandbox/messages {text} → {answer}. История — в памяти.
  */
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApiError } from "../api/client";
 import { describeApiError } from "../format";
 import { useT } from "../i18n";
