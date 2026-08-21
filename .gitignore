@@ -5,6 +5,7 @@ build/
 coverage/
 *.tsbuildinfo
 .turbo/
+.pnpm-store/
 
 # Env & secrets — никогда не коммитим (см. docs/17_CONFIGURATION.md)
 .env
