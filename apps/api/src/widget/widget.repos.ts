@@ -318,7 +318,7 @@ export class ConversationsRepo {
   ): Promise<WidgetMessageRow[]> {
     if (!this.db) throw new Error("DATABASE_URL не настроен");
     const { rows } = await this.db.query(
-      `select id, conversation_id, seq, role, content, created_at
+      `select id, conversation_id, seq, role, content, created_at, citations, confidence
        from messages
        where conversation_id = $1 and seq > $2 and role <> 'note'
        order by seq asc
