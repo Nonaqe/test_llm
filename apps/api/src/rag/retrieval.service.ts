@@ -72,11 +72,13 @@ export class RetrievalService {
     }
 
     // Косинус фьюжн-топа — метрика гейта (док термина: гейт по близости, ранжирование по RRF)
+    // ВАЖНО: $1 обязателен в тексте — неиспользуемый параметр даёт
+    // «could not determine data type of parameter $1» (pg_analyze_and_rewrite_varparams)
     const { rows: chunkRows } = await this.db.query<ChunkRow & { cosine: string }>(
       `select id, source_document_id, source_faq_id, content, metadata,
               (1 - (embedding <=> $3::vector)) as cosine
        from chunks
-       where id = any($2::uuid[])
+       where project_id = $1 and id = any($2::uuid[])
        order by embedding <=> $3::vector`,
       [projectId, topIds, vectorLiteral],
     );

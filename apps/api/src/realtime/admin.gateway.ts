@@ -50,25 +50,29 @@ export class AdminGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {}
 
   async handleConnection(client: AdminClient): Promise<void> {
-    const authToken = (client.handshake.auth as { token?: string }).token;
-    const token = authToken ?? this.tokenFromCookie(client.handshake.headers.cookie);
-    // verifyAccessToken бросает на malformed/expired-токене: без catch соединение
-    // остаётся живым с client.principal=undefined → все подписки дают bad_request
-    let payload: { sub: string } | null = null;
-    try {
-      payload = token ? verifyAccessToken(token, this.env.APP_SECRET ?? "") : null;
-    } catch {
-      payload = null;
-    }
-    if (!payload) {
-      client.disconnect(true);
-      return;
-    }
-    try {
-      client.principal = await this.usersLoader.load(payload.sub);
-    } catch {
-      client.disconnect(true);
-    }
+    // Готовность principal оформлена обещанием на клиенте: подписки могут прийти
+    // раньше завершения загрузки пользователя из БД — они дожидаются его сами.
+    client.data.principalReady = (async (): Promise<void> => {
+      const authToken = (client.handshake.auth as { token?: string }).token;
+      const token = authToken ?? this.tokenFromCookie(client.handshake.headers.cookie);
+      // verifyAccessToken не бросает (возвращает null), но обертка страхует DI-путь
+      let payload: { sub: string } | null = null;
+      try {
+        payload = token ? verifyAccessToken(token, this.env.APP_SECRET ?? "") : null;
+      } catch {
+        payload = null;
+      }
+      if (!payload) {
+        client.disconnect(true);
+        return;
+      }
+      try {
+        client.principal = await this.usersLoader.load(payload.sub);
+      } catch {
+        client.disconnect(true);
+      }
+    })();
+    await client.data.principalReady;
   }
 
   /** JWT из cookie-заголовка handshake (SESSION_COOKIE=httpOnly, JS недоступна). */
@@ -99,6 +103,7 @@ export class AdminGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client: AdminClient,
     body: { project_id: string },
   ): Promise<{ ok: boolean; error?: string }> {
+    await (client.data?.principalReady as Promise<void> | undefined);
     const principal = client.principal;
     if (!principal || !body?.project_id) return { ok: false, error: "bad_request" };
     if (!canProject(principal, Permission.UseInbox, { projectId: body.project_id })) {
@@ -120,6 +125,7 @@ export class AdminGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage("admin:unsubscribe_project")
   async unsubscribeProject(client: AdminClient, body: { project_id: string }): Promise<void> {
+    await (client.data?.principalReady as Promise<void> | undefined);
     const principal = client.principal;
     if (!principal || !body?.project_id) return;
     await client.leave(adminProjectRoom(body.project_id));
@@ -129,7 +135,8 @@ export class AdminGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   /** Heartbeat присутствия оператора (TTL 60 с — docs/13 §5). */
   @SubscribeMessage("presence:heartbeat")
-  heartbeat(client: AdminClient, body: { project_id: string }): void {
+  async heartbeat(client: AdminClient, body: { project_id: string }): Promise<void> {
+    await (client.data?.principalReady as Promise<void> | undefined);
     const principal = client.principal;
     if (!principal || !body?.project_id) return;
     if (!canProject(principal, Permission.UseInbox, { projectId: body.project_id })) return;
