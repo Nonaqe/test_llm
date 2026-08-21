@@ -8,8 +8,9 @@ AI-консультант на знаниях компании (RAG + цитат
 ## Статус
 
 - Архитектура спроектирована и утверждена (ADD v1.0, 2026-08-15).
-- Создана полная модульная документация (33 документа).
-- Реализация кода не начата.
+- Создана полная модульная документация (35 документов; полный перечень — [`docs/INDEX.md`](docs/INDEX.md)).
+- Реализация MVP идёт по фазам плана [`docs/30_MVP_IMPLEMENTATION_PLAN.md`](docs/30_MVP_IMPLEMENTATION_PLAN.md) (DOC-030).
+- Актуальный статус фаз, коммиты и обоснования реализационных решений — журнал реализации [`docs/31_IMPLEMENTATION_LOG.md`](docs/31_IMPLEMENTATION_LOG.md) (DOC-031); он же — единственный источник истины по прогрессу (здесь не дублируется).
 
 ## Документация
 
@@ -22,6 +23,8 @@ AI-консультант на знаниях компании (RAG + цитат
 | Архитектура | [`docs/03_SYSTEM_ARCHITECTURE.md`](docs/03_SYSTEM_ARCHITECTURE.md) |
 | Решения (ADR) | [`docs/26_ARCHITECTURE_DECISIONS.md`](docs/26_ARCHITECTURE_DECISIONS.md) |
 | Roadmap | [`docs/25_ROADMAP.md`](docs/25_ROADMAP.md) |
+| План реализации MVP (фазы, критерии приёмки) | [`docs/30_MVP_IMPLEMENTATION_PLAN.md`](docs/30_MVP_IMPLEMENTATION_PLAN.md) |
+| Журнал реализации (прогресс работ) | [`docs/31_IMPLEMENTATION_LOG.md`](docs/31_IMPLEMENTATION_LOG.md) |
 
 Правила работы с документацией (для людей и ИИ-агентов): [`docs/29_AI_AGENT_RULES.md`](docs/29_AI_AGENT_RULES.md).
 

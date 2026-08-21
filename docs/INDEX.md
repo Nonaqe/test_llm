@@ -117,7 +117,7 @@ related:
 | DOC-030 | 30_MVP_IMPLEMENTATION_PLAN.md | Технический план реализации MVP | draft | high | developer, architect |
 | DOC-031 | 31_IMPLEMENTATION_LOG.md | Журнал реализации: что сделано и почему | draft | high | developer, architect, ai-agent |
 
-Статусы: `draft` — черновик, `review` — на рецензии, `approved` — утверждён, `planned` — файл ещё не создан (расширение манифеста; паспорты файлов используют только draft/review/approved).
+Статусы: `draft` — черновик, `review` — на рецензии, `approved` — утверждён, `planned` — файл ещё не создан (расширение манифеста; паспорты файлов используют только draft/review/approved), `superseded` — документ устарел целиком и свёрнут в redirect-заглушку (прецедент: `docs/ARCHITECTURE.md`, DOC-ADD; правило — DOC-029 §7).
 
 ## Быстрые ссылки по задачам
 

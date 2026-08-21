@@ -1,8 +1,8 @@
 {
   "project": "Universal Chat — Self-Hosted AI Chat Platform",
   "manifest_version": "0.1.0",
-  "last_updated": "2026-08-15",
-  "statuses_note": "planned = файл ещё не создан (расширение для несозданных документов); созданные файлы используют draft | review | approved",
+  "last_updated": "2026-08-21",
+  "statuses_note": "planned = файл ещё не создан (расширение для несозданных документов); superseded = устаревший документ целиком, свёрнутый в redirect-заглушку (см. DOC-029 §7); активные файлы используют draft | review | approved",
   "documents": [
     {
       "id": "DOC-INDEX",
@@ -17,7 +17,7 @@
       "related_documents": ["DOC-NAV", "DOC-MAP", "DOC-029"],
       "status": "draft",
       "priority": "high",
-      "last_updated": "2026-08-15"
+      "last_updated": "2026-08-21"
     },
     {
       "id": "DOC-NAV",
@@ -47,7 +47,7 @@
       "related_documents": ["DOC-INDEX", "DOC-NAV", "DOC-MNF"],
       "status": "draft",
       "priority": "medium",
-      "last_updated": "2026-08-15"
+      "last_updated": "2026-08-21"
     },
     {
       "id": "DOC-MNF",
@@ -62,7 +62,7 @@
       "related_documents": ["DOC-INDEX", "DOC-MAP"],
       "status": "draft",
       "priority": "medium",
-      "last_updated": "2026-08-15"
+      "last_updated": "2026-08-21"
     },
     {
       "id": "DOC-001",
@@ -152,7 +152,7 @@
       "related_documents": ["DOC-005", "DOC-012", "DOC-020"],
       "status": "draft",
       "priority": "high",
-      "last_updated": "2026-08-15"
+      "last_updated": "2026-08-21"
     },
     {
       "id": "DOC-007",
@@ -497,7 +497,7 @@
       "related_documents": ["DOC-NAV", "DOC-INDEX", "DOC-MAP", "DOC-MNF"],
       "status": "draft",
       "priority": "high",
-      "last_updated": "2026-08-15"
+      "last_updated": "2026-08-21"
     },
     {
       "id": "DOC-030",
@@ -527,6 +527,21 @@
       "related_documents": ["DOC-030", "DOC-026", "DOC-029"],
       "status": "draft",
       "priority": "high",
+      "last_updated": "2026-08-21"
+    },
+    {
+      "id": "DOC-ADD",
+      "file": "docs/ARCHITECTURE.md",
+      "title": "Architecture Design Document v1.0 (исторический, superseded)",
+      "summary": "Утверждённый заказчиком ADD v1.0 от 2026-08-15, свёрнутый в redirect-заглушку: таблица соответствия разделов ADD модульным документам. Содержание полностью разложено по DOC-001…DOC-031; источник истины — модульная документация.",
+      "purpose": "Сохранить вход для старых ссылок на ARCHITECTURE.md и карту переноса содержания.",
+      "when_to_read": "Только чтобы найти, в какой модульный документ переехал раздел старого ADD.",
+      "when_not_to_read": "Во всех остальных случаях — читайте актуальные модульные документы от INDEX.md.",
+      "keywords": ["add", "архитектура", "исторический", "redirect", "superseded"],
+      "audience": ["developer", "architect"],
+      "related_documents": ["DOC-INDEX", "DOC-003", "DOC-026"],
+      "status": "superseded",
+      "priority": "low",
       "last_updated": "2026-08-15"
     }
   ]
