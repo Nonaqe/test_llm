@@ -368,7 +368,7 @@ describe.skipIf(!DB_URL)("e2e: сайты, аналитика, песочниц�
     const res = await owner(api().post(`/api/v1/projects/${projectId}/sandbox/messages`)).send({
       text: "сколько стоит доставка?",
     });
-    expect(res.status).toBe(201);
+    expect(res.status, `sandbox in-kb failed: ${JSON.stringify(res.body)}`).toBe(201);
     const answer = res.body.data.answer;
     expect(answer.fallback).toBe(false);
     expect(answer.confidence).toBeGreaterThan(0); // fake: 0.87
@@ -388,7 +388,7 @@ describe.skipIf(!DB_URL)("e2e: сайты, аналитика, песочниц�
     const res = await owner(api().post(`/api/v1/projects/${projectId}/sandbox/messages`)).send({
       text: "zxqww vvv tttrrr",
     });
-    expect(res.status).toBe(201);
+    expect(res.status, `sandbox out-kb failed: ${JSON.stringify(res.body)}`).toBe(201);
     const answer = res.body.data.answer;
     expect(answer.fallback).toBe(true);
     expect(answer.text).toBe(FALLBACK);

@@ -52,7 +52,14 @@ export class AdminGateway implements OnGatewayConnection, OnGatewayDisconnect {
   async handleConnection(client: AdminClient): Promise<void> {
     const authToken = (client.handshake.auth as { token?: string }).token;
     const token = authToken ?? this.tokenFromCookie(client.handshake.headers.cookie);
-    const payload = token ? verifyAccessToken(token, this.env.APP_SECRET ?? "") : null;
+    // verifyAccessToken бросает на malformed/expired-токене: без catch соединение
+    // остаётся живым с client.principal=undefined → все подписки дают bad_request
+    let payload: { sub: string } | null = null;
+    try {
+      payload = token ? verifyAccessToken(token, this.env.APP_SECRET ?? "") : null;
+    } catch {
+      payload = null;
+    }
     if (!payload) {
       client.disconnect(true);
       return;

@@ -317,14 +317,15 @@ describe.skipIf(!DB_URL)("e2e: эскалация и операторы (Фаз�
     expect(patch.status).toBe(200);
 
     // Гейт требует релевантных знаний (иначе confidence не возникает вовсе):
-    // сеем FAQ, чей вопрос лексически совпадает с вопросом посетителя —
-    // хешинг-эмбеддинги дают косинус 1/√3 ≈ 0.58 ≥ порога гейта 0.55.
+    // сеем короткий FAQ, чьи токены совпадают с запросом посетителя — хешинг-
+    // эмбеддинги дают косинус 1/√2 ≈ 0.71 ≥ порога гейта 0.55 детерминированно
+    // (длинный ответ давал ~0.30 и гейт не проходил на CI).
     // Индексация FAQ синхронна (await enqueue в knowledge.service).
     const faq = await owner(
       request(app.getHttpServer()).post(`/api/v1/projects/${projectId}/knowledge/faqs`),
     ).send({
-      question: "Сколько стоит доставка?",
-      answer: "Доставка по городу стоит 500 рублей и занимает два дня.",
+      question: "Доставка?",
+      answer: "Доставка бесплатная.",
     });
     expect(faq.status).toBe(201);
 
@@ -430,7 +431,7 @@ describe.skipIf(!DB_URL)("e2e: эскалация и операторы (Фаз�
       socket.on("connect_error", (err) => reject(err));
       setTimeout(() => reject(new Error("admin connect timeout")), 5000);
     });
-    expect(subscribed.ok).toBe(true);
+    expect(subscribed.ok, `subscribe failed: ${JSON.stringify(subscribed)}`).toBe(true);
 
     const gotHandoff = new Promise<{ conversation_id: string; reason: string }>((resolve, reject) => {
       socket.on("handoff:created", (p: { conversation_id: string; reason: string }) => resolve(p));
