@@ -1,5 +1,9 @@
 # Caddy — TLS + reverse proxy (docs/16_DEPLOYMENT.md §3).
-# Домен задаётся переменной окружения CHAT_DOMAIN (installer, Фаза 7).
+# Переменные задаёт installer (.env): CHAT_DOMAIN, ACME_EMAIL.
+{
+	email {$ACME_EMAIL}
+}
+
 {$CHAT_DOMAIN} {
 	reverse_proxy api:3000
 }

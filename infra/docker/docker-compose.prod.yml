@@ -1,0 +1,89 @@
+# Прод-стек Universal Chat (docs/16_DEPLOYMENT.md §3, Фаза 7).
+# Запуск: install.sh (генерирует .env) либо вручную:
+#   docker compose -f infra/docker/docker-compose.prod.yml --env-file .env up -d
+#
+# Отличие от таблицы DOC-16 §3: НЕТ отдельного контейнера backup (alpine+crond) —
+# бэкапы выполняет worker (BackupService: pg_dump + tar uploads, ретенция,
+# кнопка в админке и расписание в одном месте). Отклонение задокументировано.
+services:
+  caddy:
+    image: caddy:2
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      CHAT_DOMAIN: ${CHAT_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - unichat_caddy_data:/data
+      - unichat_caddy_config:/config
+    restart: unless-stopped
+    depends_on:
+      - api
+
+  api:
+    image: ${CHAT_IMAGE:-chat-platform}:${CHAT_VERSION:-1.0.0}
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+    command: node apps/api/dist/main.js
+    env_file: .env
+    environment:
+      PORT: "3000"
+    volumes:
+      - unichat_uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+    mem_limit: 512m
+
+  worker:
+    image: ${CHAT_IMAGE:-chat-platform}:${CHAT_VERSION:-1.0.0}
+    command: node apps/api/dist/worker.js
+    env_file: .env
+    environment:
+      PORT: "3001" # не публикуется; worker не слушает HTTP
+    volumes:
+      - unichat_uploads:/app/uploads
+      - unichat_backups:/app/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+    mem_limit: 1g
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: unichat
+      POSTGRES_USER: unichat
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - unichat_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U unichat"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+    # Порты наружу НЕ публикуются (docs/16 «Частые ошибки»)
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - unichat_redisdata:/data
+    restart: unless-stopped
+
+volumes:
+  unichat_pgdata: {}
+  unichat_redisdata: {}
+  unichat_uploads: {}
+  unichat_backups: {}
+  unichat_caddy_data: {}
+  unichat_caddy_config: {}
