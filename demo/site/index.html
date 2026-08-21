@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UniChat Demo — тестовый сайт</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: linear-gradient(160deg, #f6f8fb 0%, #eef2f7 100%);
+    color: #1c2733; min-height: 100vh;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 18px 32px; background: #ffffffcc;
+    backdrop-filter: blur(8px); border-bottom: 1px solid #e3e9f0;
+    position: sticky; top: 0;
+  }
+  .logo {
+    width: 34px; height: 34px; border-radius: 10px;
+    background: linear-gradient(135deg, #4f7cff, #7b5cff);
+    display: grid; place-items: center; color: white; font-weight: 700;
+  }
+  header h1 { font-size: 17px; font-weight: 600; }
+  header span.badge {
+    font-size: 11px; padding: 3px 9px; border-radius: 999px;
+    background: #e8f7ee; color: #1d7a46; border: 1px solid #bfe8cf;
+  }
+  main { max-width: 880px; margin: 0 auto; padding: 48px 24px 80px; }
+  h2 { font-size: 34px; line-height: 1.15; letter-spacing: -.02em; margin-bottom: 14px; }
+  .sub { color: #5b6b7c; font-size: 17px; line-height: 1.55; max-width: 640px; margin-bottom: 30px; }
+  .cta {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: linear-gradient(135deg, #4f7cff, #7b5cff); color: white;
+    border: none; border-radius: 12px; padding: 14px 26px;
+    font-size: 16px; font-weight: 600; cursor: pointer;
+    box-shadow: 0 8px 22px -8px #4f7cff88; transition: transform .15s;
+  }
+  .cta:hover { transform: translateY(-2px); }
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr));
+    gap: 16px; margin-top: 48px;
+  }
+  .card {
+    background: white; border: 1px solid #e3e9f0; border-radius: 14px;
+    padding: 20px 22px;
+  }
+  .card b { display: block; margin-bottom: 8px; font-size: 15px; }
+  .card p { color: #5b6b7c; font-size: 13.5px; line-height: 1.55; }
+  footer {
+    max-width: 880px; margin: 0 auto; padding: 0 24px 40px;
+    color: #8595a6; font-size: 12.5px; line-height: 1.6;
+  }
+  code { background: #f0f3f8; border-radius: 6px; padding: 2px 6px; font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">U</div>
+  <h1>Nova Shop</h1>
+  <span class="badge">демо-сайт</span>
+</header>
+
+<main>
+  <h2>Интернет-магазин,<br>который отвечает сам</h2>
+  <p class="sub">
+    Это обычный тестовый сайт для проверки чата UniChat. Нажмите на кнопку
+    в правом нижнем углу и спросите что-нибудь о проекте: фазах плана,
+    архитектуре, безопасности или API. Ответы строятся по базе знаний
+    из документации проекта (RAG) с указанием источников.
+  </p>
+  <button class="cta" onclick="ChatWidget.open()">💬 Открыть чат поддержки</button>
+
+  <div class="grid">
+    <div class="card"><b>📦 Каталог</b><p>Товары, категории, поиск. Здесь чат помогает найти нужный раздел.</p></div>
+    <div class="card"><b>🚚 Доставка</b><p>Сроки, зоны, стоимость — частые вопросы закрывает AI-ассистент.</p></div>
+    <div class="card"><b>🧑‍🔧 Поддержка</b><p>Сложные вопросы эскалируются живому оператору с историей диалога.</p></div>
+  </div>
+</main>
+
+<footer>
+  Виджет подключён одной строкой:
+  <code>&lt;script src=".../widget.js" data-chat-key="…"&gt;&lt;/script&gt;</code>.
+  Сервер: <code>http://localhost:3000</code> · база знаний: 35 документов docs/*.md ·
+  LLM: opencode zen (x-preview-f-free), retrieval: гибридный FTS+вектора.
+</footer>
+
+<!-- ══════════ UniChat widget ══════════ -->
+<script src="http://localhost:3000/widget.js"
+        data-chat-key="VMEZpLLhEijQg4rAPeeOKCiA0ETwsd-c"
+        data-chat-server="http://localhost:3000"
+        defer></script>
+</body>
+</html>

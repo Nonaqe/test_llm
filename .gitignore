@@ -22,3 +22,6 @@ Thumbs.db
 *.log
 logs/
 tmp/
+demo/.pgdata/
+uploads/
+desktop.ini

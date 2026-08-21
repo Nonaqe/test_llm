@@ -65,8 +65,12 @@ export class AiProviderService {
   async embedding(): Promise<EmbeddingProvider> {
     const { config, apiKey } = await this.resolve();
     if (config.kind === "fake") return new FakeEmbeddingProvider();
-    if (!config.baseUrl || !config.embeddingModel) {
-      throw new Error("AI-провайдер не настроен: задайте ai_provider.base_url и embedding_model (docs/17 §3)");
+    // Гибрид (docs/11 §2): реальная LLM + lexical-эмбеддинги, если у провайдера
+    // нет /embeddings (например, opencode zen) — retrieval остаётся рабочим за
+    // счёт FTS-плеча и детерминированных векторов (порог гейта — 0.3)
+    if (!config.embeddingModel) return new FakeEmbeddingProvider();
+    if (!config.baseUrl) {
+      throw new Error("AI-провайдер не настроен: задайте ai_provider.base_url (docs/17 §3)");
     }
     return new OpenAiCompatibleEmbeddingProvider(
       config.baseUrl,
@@ -76,15 +80,29 @@ export class AiProviderService {
     );
   }
 
-  /** «Проверить соединение» (docs/22 §3): тестовый вызов эмбеддингов. */
+  /** «Проверить соединение» (docs/22 §3): тестовый вызов LLM/эмбеддингов. */
   async check(): Promise<{ ok: true; kind: string } | { ok: false; error: string }> {
     try {
+      const { config } = await this.resolve();
+      if (config.kind === "openai_compatible" && config.chatModel && !config.embeddingModel) {
+        // нет /embeddings — проверяем реальным минимальным чат-вызовом
+        const llm = await this.llm();
+        const stream = llm.chatStream(
+          [
+            { role: "system", content: "Отвечай ровно одним словом." },
+            { role: "user", content: "Скажи: ок" },
+          ],
+          { maxTokens: 512, timeoutMs: 30_000 }, // reasoning-модели тратят токены на размышления
+        );
+        const out = await stream.result();
+        if (!out.raw.trim()) throw new Error("пустой ответ чата");
+        return { ok: true, kind: config.kind };
+      }
       const provider = await this.embedding();
       const vectors = await provider.embed(["ping"]);
       if (vectors.length !== 1 || vectors[0]!.length === 0) {
         throw new Error("пустой ответ эмбеддингов");
       }
-      const { config } = await this.resolve();
       return { ok: true, kind: config.kind };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };

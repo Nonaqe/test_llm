@@ -1,0 +1,10 @@
+import pg from "pg";
+const c = new pg.Client({ connectionString: "postgres://postgres:postgres@127.0.0.1:54329/postgres" });
+await c.connect();
+const q = (sql) => c.query(sql).then((r) => r.rows);
+console.log("documents:", JSON.stringify(await q("select status, count(*) from documents group by status")));
+console.log("chunks:", JSON.stringify(await q("select count(*) as n, min(length(content)) as min_len, avg(length(content))::int as avg_len from chunks")));
+console.log("faq:", JSON.stringify(await q("select count(*) from faqs")));
+const sample = await q("select left(content, 90) as content from chunks limit 3");
+for (const r of sample) console.log("·", r.content.replace(/\n/g, " "));
+await c.end();
