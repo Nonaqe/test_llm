@@ -73,11 +73,14 @@ PR / push:
   lint + typecheck (все пакеты)
   unit (core, shared)
   build (включая проверку размера widget)
+  smoke: бутстрап AppModule без БД (`node dist/main.js` → /health 200)
   integration + e2e (Testcontainers)
 release (тег):
   сборка Docker-образа chat-platform:<semver>
   прогон restore-теста бэкапа на чистой ВМ (раз в релиз, TBD)
 ```
+
+Smoke-бутстрап обязателен: typecheck и юниты DI-граф Nest не проверяют (дефект Ф3–Ф4 — IR-039 в DOC-031); шаг вводится в CI — до того см. D-13.
 
 ## Чек-лист новой фичи
 

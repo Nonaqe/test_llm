@@ -137,7 +137,7 @@
       "related_documents": ["DOC-003", "DOC-006", "DOC-007", "DOC-011"],
       "status": "draft",
       "priority": "high",
-      "last_updated": "2026-08-15"
+      "last_updated": "2026-08-21"
     },
     {
       "id": "DOC-006",
@@ -167,7 +167,7 @@
       "related_documents": ["DOC-005", "DOC-008", "DOC-010"],
       "status": "draft",
       "priority": "high",
-      "last_updated": "2026-08-15"
+      "last_updated": "2026-08-21"
     },
     {
       "id": "DOC-008",
@@ -182,7 +182,7 @@
       "related_documents": ["DOC-007", "DOC-010", "DOC-015"],
       "status": "draft",
       "priority": "high",
-      "last_updated": "2026-08-15"
+      "last_updated": "2026-08-21"
     },
     {
       "id": "DOC-009",
@@ -257,7 +257,7 @@
       "related_documents": ["DOC-014", "DOC-021", "DOC-007"],
       "status": "draft",
       "priority": "high",
-      "last_updated": "2026-08-15"
+      "last_updated": "2026-08-21"
     },
     {
       "id": "DOC-014",
@@ -272,7 +272,7 @@
       "related_documents": ["DOC-011", "DOC-013"],
       "status": "draft",
       "priority": "high",
-      "last_updated": "2026-08-15"
+      "last_updated": "2026-08-21"
     },
     {
       "id": "DOC-015",
@@ -332,7 +332,7 @@
       "related_documents": ["DOC-023", "DOC-005"],
       "status": "draft",
       "priority": "medium",
-      "last_updated": "2026-08-15"
+      "last_updated": "2026-08-21"
     },
     {
       "id": "DOC-019",

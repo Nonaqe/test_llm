@@ -131,6 +131,7 @@ Visitor identity: анонимный `anon_id` в `localStorage` домена с
 - Токены `ai_token` рендерятся инкрементально (markdown), тяжёлый рендер-модуль грузится при первом открытии.
 - **Весь HTML проходит DOMPurify** (allowlist) — и markdown ответов AI, и любой контент (DOC-015).
 - Ссылки: `rel="noopener nofollow"`, протокол-allowlist (http/https/mailto).
+- Realtime-статусы оператора (Ф4): `presence:operators` — индикатор онлайн-операторов в шапке панели; `operator:typing` — «оператор набирает» (точки, TTL 5 с на клиенте); события — DOC-007 §4.1.
 
 ## 7. Мобильная адаптация
 

@@ -69,9 +69,10 @@ apps/api/src/modules/conversations/
 
 ```text
 1. Валидация (visitor token, rate limit, origin, размер)
-2. ПЕРСИСТЕНТНОСТЬ: INSERT message (seq = last_seq + 1, в транзакции)
+2. ПЕРСИСТЕНТНОСТЬ: INSERT message (seq = last_seq + 1, в транзакции);
+   если state = RESOLVED/CLOSED — там же reopen → AI_ACTIVE (IR-035)
 3. Пуш в комнату диалога (Socket.IO)
-4. Если state = AI_ACTIVE → AI-ход (ниже)
+4. Если state после записи = AI_ACTIVE → AI-ход (ниже)
 5. Иначе (WAITING_OPERATOR / OPERATOR_ACTIVE) → AI молчит
 ```
 
@@ -143,8 +144,9 @@ UPDATE conversations SET last_seq = last_seq + 1 WHERE id = $1 RETURNING last_se
 | `keyword` | regex-список («жалоба», «скандал»...) | handoff |
 | `intent` | `detected_intent == имя` | handoff |
 | `complaint` | флаг `complaint` | handoff |
+| `no_answer` | N подряд fallback-ответов (`fallback_streak` в conversations.context) | handoff |
 
-При срабатывании: прощальная фраза AI → запись `handoffs` → `state = WAITING_OPERATOR` → уведомление операторам (WS; email, если никто не принял за N минут). Настройка правил без программирования — DOC-014 (источник истины по правилам).
+При срабатывании: прощальная фраза AI → запись `handoffs` → `state = WAITING_OPERATOR` → уведомление операторам (WS; email, если никто не принял за N минут). Единая точка создания handoff — **HandoffService** (и явная просьба виджета `POST /widget/v1/conversations/:id/handoff`, и правила): офлайн-детект по presence проекта (IR-031), при пустом presence — предложение leave-email; переходы состояния — условным UPDATE (гонка → 409, IR-032); напоминания — скан каждые 30 с через Mailer (DI-токен MAILER, консольный транспорт — IR-034; SMTP — D-11) с дедупликацией событием `handoff.email_notified` (IR-033). Правила применяются после каждого хода, включая гейт-fallback без LLM (IR-036). Настройка правил без программирования — DOC-014 (источник истины по правилам).
 
 ## 5. Очереди и воркеры (BullMQ / Redis)
 

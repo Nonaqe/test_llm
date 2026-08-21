@@ -29,7 +29,7 @@ related:
 - Rate limits.
 - Версионирование.
 
-Контракт — проектный (implementation TBD); до реализации считается спецификацией к выполнению.
+Статус реализации привязан к фазам (журнал — DOC-031): строки таблиц без пометки реализованы в Ф1–Ф4; пометка «спецификация» — контракт на будущую фазу.
 
 ## 1. Принципы
 
@@ -50,7 +50,7 @@ related:
 | GET | `/widget/v1/conversations/:id/messages?after_seq=N` | Кэтч-ап после reconnect |
 | POST | `/widget/v1/conversations/:id/messages` | Сообщение посетителя (Idempotency-Key) |
 | POST | `/widget/v1/conversations/:id/handoff` | Явная просьба «позвать человека» |
-| POST | `/widget/v1/conversations/:id/leave-email` | Офлайн-заявка (email lead) — Фаза 4 |
+| POST | `/widget/v1/conversations/:id/leave-email` | Офлайн-заявка (email lead): контакты в `context` диалога, подтверждение посетителю, pending-handoff → cancelled, событие `lead.captured` (реализовано в Ф4) |
 
 ### 2.1 Пример: инициализация
 
@@ -120,14 +120,14 @@ Authorization: Bearer <visitor_token>
 |---|---|
 | Auth | `POST /auth/login`, `POST /auth/logout`, `POST /auth/refresh`, `GET /auth/me` |
 | Проекты | `GET/POST/PATCH /projects`; `GET/POST/PATCH /projects/:id/members` |
-| Сайты | `GET/POST/PATCH /projects/:id/sites` (+ regen ключа: `POST /sites/:id/regen-key`) |
-| Ассистент | `GET/PATCH /projects/:id/assistant` (персона, тон, retrieval_settings, safety_settings, widget_texts; реализовано в Ф3); rules — Ф4 |
-| Знания | `POST /projects/:id/knowledge/documents` (multipart), `POST /projects/:id/knowledge/urls`, `GET/POST/PATCH/DELETE /projects/:id/knowledge/faqs`, `POST /knowledge/documents/:id/reindex`, `DELETE /knowledge/documents/:id` |
-| Диалоги | `GET /projects/:id/conversations?state=&site=&cursor=`, `GET /conversations/:id`, `POST /conversations/:id/assign|close|reopen|return-to-ai`, `POST /conversations/:id/messages` |
-| Очередь | `GET /handoffs?status=pending` |
-| Аналитика | `GET /projects/:id/analytics/overview` |
+| Сайты | `GET/POST/PATCH /projects/:id/sites` (+ regen ключа: `POST /sites/:id/regen-key`) — спецификация; REST для сайтов ещё не реализован (на момент Ф4) |
+| Ассистент | `GET/PATCH /projects/:id/assistant` (персона, тон, retrieval_settings, safety_settings, widget_texts; реализовано в Ф3); rules: `GET/POST /projects/:id/assistant/rules`, `PATCH/DELETE .../rules/:ruleId` (реализовано в Ф4; занятый priority → 409 `RULE_PRIORITY_TAKEN`; дефолтный набор создаётся при первом обращении — ensureDefaults) |
+| Знания | `POST /projects/:id/knowledge/documents` (multipart), `GET .../documents`, `POST .../documents/:docId/reindex`, `DELETE .../documents/:docId`, `POST /projects/:id/knowledge/urls`, `POST /projects/:id/knowledge/texts`, `GET/POST/PUT/DELETE /projects/:id/knowledge/faqs` |
+| Диалоги | `GET /projects/:id/conversations?state=&cursor=` (фильтр state, offset-курсор), `GET /conversations/:id` (карточка с причиной handoff), `POST /conversations/:id/accept\|assign\|return-to-ai\|close\|reopen`, `GET/POST /conversations/:id/messages` (ответ role=operator только в OPERATOR_ACTIVE; заметки role=note виджету не отдаются) — реализовано в Ф4 |
+| Очередь | `GET /handoffs?status=pending` (FIFO, только доступные оператору проекты) — реализовано в Ф4 |
+| Аналитика | `GET /projects/:id/analytics/overview` — спецификация (Фаза 5) |
 | Команда | `GET/POST /users` |
-| Настройки | `GET/PATCH /settings` (AI provider, SMTP, бэкапы); `POST /settings/ai-provider/check` — тест провайдера (Ф3) |
+| Настройки | `GET /settings` (секреты маскируются); `PUT /settings/:key`; `POST /settings/ai-provider/check` — тест провайдера (Ф3) |
 
 ### 3.1 Пример: вход
 
@@ -187,7 +187,7 @@ POST /api/v1/conversations/0192a1b2-.../return-to-ai
 
 **Клиент → сервер:** `admin:subscribe_conversation {id}`, `admin:subscribe_project {id}`, `admin:typing {conversation_id}`, `admin:unsubscribe_*`.
 
-**Сервер → клиент:** `conversation:created`, `conversation:state_changed`, `message`, `handoff:created`, `queue:updated`, `operator:presence`.
+**Сервер → клиент:** `conversation:created`, `conversation:state_changed`, `message`, `handoff:created`, `queue:updated`, `operator:presence`, `visitor:typing` (релей typing посетителя оператору).
 
 ### 4.3 Reconnect и кэтч-ап
 
@@ -217,6 +217,7 @@ POST /api/v1/conversations/0192a1b2-.../return-to-ai
 | `CONVERSATION_NOT_FOUND` | 404 | widget/admin |
 | `FORBIDDEN_PROJECT` | 403 | admin: чужой проект |
 | `INVALID_STATE_TRANSITION` | 409 | admin |
+| `RULE_PRIORITY_TAKEN` | 409 | admin: правило с таким priority уже есть у ассистента |
 | `IDEMPOTENCY_CONFLICT` | 409 | повторный ключ с другим телом |
 | `VALIDATION_FAILED` | 422 | обе |
 | `LOGIN_LOCKED` | 429 | auth: brute-force защита |
