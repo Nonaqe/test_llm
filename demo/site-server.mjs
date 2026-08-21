@@ -10,10 +10,11 @@ const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", "
 
 createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", "http://x");
-  const path = url.pathname === "/" ? "index.html" : url.pathname.replace(/^\/+/, "");
+  const path = url.pathname === "/" ? "index.html" : decodeURIComponent(url.pathname.replace(/^\/+/, ""));
   try {
     const data = await readFile(root + path);
-    res.writeHead(200, { "Content-Type": TYPES[path.split(".").pop()] ?? "application/octet-stream" });
+    const ext = "." + (path.split(".").pop() ?? "").toLowerCase();
+    res.writeHead(200, { "Content-Type": TYPES[ext] ?? "application/octet-stream" });
     res.end(data);
   } catch {
     res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
