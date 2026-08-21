@@ -138,7 +138,11 @@ export class SandboxService {
 
 /** Ошибки провайдера/конфигурации → 502 AI_PROVIDER_ERROR (стиль реестра docs/07 §5). */
 function providerError(err: unknown): AppError {
+  const e = err as { message?: string; queryText?: string; where?: string; routine?: string };
   return new AppError("AI_PROVIDER_ERROR", "AI-провайдер недоступен или вернул ошибку", 502, {
-    reason: err instanceof Error ? err.message : String(err),
+    reason: e?.message ?? String(err),
+    query: e?.queryText,
+    pg_where: e?.where,
+    routine: e?.routine,
   });
 }

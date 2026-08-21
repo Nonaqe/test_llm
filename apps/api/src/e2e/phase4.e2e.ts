@@ -332,12 +332,15 @@ describe.skipIf(!DB_URL)("e2e: эскалация и операторы (Фаз�
     const t = await initVisitor("anon-p4-e4-1");
     convE4 = await createConversation(t);
     await sendVisitorMessage(t, convE4, "доставка?", "p4-e4-1");
-    await pollMessages(t, convE4, 1, 1); // ход с уверенностью ниже правила
+    const e4Msgs = await pollMessages(t, convE4, 1, 1); // ход с уверенностью ниже правила
 
     const state = await request(app.getHttpServer())
       .get(`/widget/v1/conversations/${convE4}`)
       .set("Authorization", `Bearer ${t}`);
-    expect(state.body.data.conversation.state).toBe("WAITING_OPERATOR");
+    expect(
+      state.body.data.conversation.state,
+      `E4: handoff не случился; сообщения=${JSON.stringify(e4Msgs)}`,
+    ).toBe("WAITING_OPERATOR");
 
     const card = await owner(request(app.getHttpServer()).get(`/api/v1/conversations/${convE4}`));
     expect(card.body.data.conversation.handoff.reason).toBe("low_confidence");
