@@ -3,6 +3,7 @@
  * Используется процессами api и worker. Границы — docs/04 §4.
  */
 export * from "./conversation/state-machine";
+export * from "./escalation/rules-engine";
 export * from "./rbac/rbac";
 export * from "./ai/provider";
 export * from "./ai/prompt-builder";
