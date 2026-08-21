@@ -14,7 +14,10 @@ createServer(async (req, res) => {
   try {
     const data = await readFile(root + path);
     const ext = "." + (path.split(".").pop() ?? "").toLowerCase();
-    res.writeHead(200, { "Content-Type": TYPES[ext] ?? "application/octet-stream" });
+    res.writeHead(200, {
+      "Content-Type": TYPES[ext] ?? "application/octet-stream",
+      "Cache-Control": "no-cache",
+    });
     res.end(data);
   } catch {
     res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
