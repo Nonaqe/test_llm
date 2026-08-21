@@ -278,14 +278,7 @@ describe.skipIf(!DB_URL)("e2e: эскалация и операторы (Фаз�
     expect(second.status).toBe(409);
     expect(second.body.error.code).toBe("INVALID_STATE_TRANSITION");
 
-    // ответ оператора возможен только в OPERATOR_ACTIVE
-    const late = await op1(request(app.getHttpServer()).post(`/api/v1/conversations/${c}/messages`)).send({
-      text: "опоздал",
-    });
-    void late;
-    // диалог c уже OPERATOR_ACTIVE (первый принял) — проверяем запрет на другом состоянии ниже
-
-    // незаконные переходы: reopen из WAITING_OPERATOR, close из RESOLVED позже
+    // незаконные переходы: reopen из OPERATOR_ACTIVE запрещён
     const reopenWrong = await op1(request(app.getHttpServer()).post(`/api/v1/conversations/${c}/reopen`));
     expect(reopenWrong.status).toBe(409);
     expect(reopenWrong.body.error.code).toBe("INVALID_STATE_TRANSITION");

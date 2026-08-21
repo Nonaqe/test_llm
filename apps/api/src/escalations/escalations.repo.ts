@@ -47,16 +47,24 @@ export class EscalationsRepo {
   /** Дефолтные правила создаются один раз — при первом обращении к ассистенту. */
   async ensureDefaults(assistantId: string): Promise<void> {
     if (!this.db) throw new Error("DATABASE_URL не настроен");
-    await this.db.query(
-      `insert into escalation_rules (assistant_id, priority, type, params, action)
-       select $1, x.priority, x.type, x.params::jsonb, x.action
-       from (values ${DEFAULT_RULES.map((_, i) => `($${2 + i * 4}, $${3 + i * 4}, $${4 + i * 4}::jsonb, $${5 + i * 4})`).join(", ")}) as x(priority, type, params, action)
-       where not exists (select 1 from escalation_rules where assistant_id = $1)`,
-      [
-        assistantId,
-        ...DEFAULT_RULES.flatMap((r) => [r.priority, r.type, JSON.stringify(r.params), r.action]),
-      ],
-    );
+    try {
+      await this.db.query(
+        `insert into escalation_rules (assistant_id, priority, type, params, action)
+         select $1, x.priority, x.type, x.params::jsonb, x.action
+         from (values ${DEFAULT_RULES.map(
+           (_, i) =>
+             `($${2 + i * 4}::int, $${3 + i * 4}::text, $${4 + i * 4}::jsonb, $${5 + i * 4}::text)`,
+         ).join(", ")}) as x(priority, type, params, action)
+         where not exists (select 1 from escalation_rules where assistant_id = $1)`,
+        [
+          assistantId,
+          ...DEFAULT_RULES.flatMap((r) => [r.priority, r.type, JSON.stringify(r.params), r.action]),
+        ],
+      );
+    } catch (err) {
+      // Гонка двух одновременных первых сообщений: дефолты уже созданы — это успех
+      if ((err as { code?: string }).code !== "23505") throw err;
+    }
   }
 
   async findById(ruleId: string): Promise<EscalationRuleRow | null> {
@@ -114,6 +122,11 @@ export class EscalationsRepo {
     if (patch.params !== undefined) add("params", patch.params);
     if (patch.action !== undefined) add("action", patch.action);
     if (patch.enabled !== undefined) add("enabled", patch.enabled);
+    if (sets.length === 0) {
+      const current = await this.findById(ruleId);
+      if (!current) throw AppError.notFound("Правило");
+      return current;
+    }
     try {
       const { rows } = await this.db.query(
         `update escalation_rules set ${sets.join(", ")} where id = $1
