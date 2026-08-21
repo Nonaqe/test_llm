@@ -148,11 +148,12 @@ export function SandboxPage() {
 /** Цитаты-чипы + бейдж confidence + плашка fallback под ответом AI. */
 function AnswerFootnote({ answer }: { answer: SandboxAnswer }) {
   const { t } = useT();
-  const citations = answer.citations ?? [];
+  const citations = answer.citations;
   return (
     <span className="sandbox-foot">
-      {answer.fallback === true && <span className="chip reason">{t("sbx.fallbackBadge")}</span>}
-      {answer.confidence !== undefined && answer.confidence !== null && (
+      {answer.fallback && <span className="chip reason">{t("sbx.fallbackBadge")}</span>}
+      {/* confidence === null на fallback-ходе (LLM не вызывался) — чип не рисуем */}
+      {answer.confidence !== null && (
         <span className={`chip ${answer.confidence >= 0.55 ? "" : "reason"}`}>
           {t("sbx.confidence", { params: { value: Math.round(answer.confidence * 100) } })}
         </span>

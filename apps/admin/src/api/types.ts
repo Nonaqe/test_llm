@@ -348,14 +348,15 @@ export interface ProjectAnalyticsDto {
 }
 
 // --- Песочница (POST /projects/:id/sandbox/messages {text} → {answer};
-// SandboxAnswerDto из packages/shared) ---
+// SandboxAnswerDto из packages/shared — поля обязательны, confidence null на
+// fallback-ходе) ---
 
 export interface SandboxAnswer {
   text: string;
-  citations?: Array<{ chunk_id: string; score: number }>;
+  citations: Array<{ chunk_id: string; score: number }>;
   /** Самооценка LLM 0..1; null на fallback-ходе (LLM не вызывался). */
-  confidence?: number | null;
-  fallback?: boolean;
+  confidence: number | null;
+  fallback: boolean;
 }
 
 // --- Настройки установки (apps/api/src/settings/settings.controller.ts) ---
