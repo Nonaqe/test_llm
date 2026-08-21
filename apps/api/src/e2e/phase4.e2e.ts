@@ -298,7 +298,6 @@ describe.skipIf(!DB_URL)("e2e: эскалация и операторы (Фаз�
   });
 
   it("E4: low_confidence → авто-эскалация по правилу (rule_id записан)", async () => {
-    // дефолтные правила созданы движком при первом AI-ходе
     const list = await owner(
       request(app.getHttpServer()).get(`/api/v1/projects/${projectId}/assistant/rules`),
     );
@@ -317,10 +316,22 @@ describe.skipIf(!DB_URL)("e2e: эскалация и операторы (Фаз�
     ).send({ params: { threshold: 0.99 } });
     expect(patch.status).toBe(200);
 
+    // Гейт требует релевантных знаний (иначе confidence не возникает вовсе):
+    // сеем FAQ, чей вопрос лексически совпадает с вопросом посетителя —
+    // хешинг-эмбеддинги дают косинус 1/√3 ≈ 0.58 ≥ порога гейта 0.55.
+    // Индексация FAQ синхронна (await enqueue в knowledge.service).
+    const faq = await owner(
+      request(app.getHttpServer()).post(`/api/v1/projects/${projectId}/knowledge/faqs`),
+    ).send({
+      question: "Сколько стоит доставка?",
+      answer: "Доставка по городу стоит 500 рублей и занимает два дня.",
+    });
+    expect(faq.status).toBe(201);
+
     const t = await initVisitor("anon-p4-e4-1");
     convE4 = await createConversation(t);
     await sendVisitorMessage(t, convE4, "доставка?", "p4-e4-1");
-    await pollMessages(t, convE4, 1, 1); // AI-ход с низкой (для правила) уверенностью
+    await pollMessages(t, convE4, 1, 1); // ход с уверенностью ниже правила
 
     const state = await request(app.getHttpServer())
       .get(`/widget/v1/conversations/${convE4}`)
@@ -330,6 +341,12 @@ describe.skipIf(!DB_URL)("e2e: эскалация и операторы (Фаз�
     const card = await owner(request(app.getHttpServer()).get(`/api/v1/conversations/${convE4}`));
     expect(card.body.data.conversation.handoff.reason).toBe("low_confidence");
     expect(card.body.data.conversation.handoff.rule_id).toBe(low!.id);
+
+    // возвращаем дефолтный порог — не влияем на последующие тесты
+    const restore = await owner(
+      request(app.getHttpServer()).patch(`/api/v1/projects/${projectId}/assistant/rules/${low!.id}`),
+    ).send({ params: { threshold: 0.55 } });
+    expect(restore.status).toBe(200);
   });
 
   it("E6: возврат чата AI → AI отвечает с контекстом после сообщений оператора", async () => {
@@ -395,6 +412,13 @@ describe.skipIf(!DB_URL)("e2e: эскалация и операторы (Фаз�
       reconnection: false,
     });
 
+    // presence приходит в момент подписки (и на heartbeat) — слушатель вешаем ДО,
+    // иначе единственное событие пройдёт до подключения и тест уйдёт в таймаут
+    const presence = new Promise<number>((resolve, reject) => {
+      socket.on("operator:presence", (p: { online_count: number }) => resolve(p.online_count));
+      setTimeout(() => reject(new Error("no operator:presence push")), 8000);
+    });
+
     const subscribed = await new Promise<{ ok: boolean; error?: string }>((resolve, reject) => {
       socket.io.on("open", () => {
         socket.emit(
@@ -426,12 +450,7 @@ describe.skipIf(!DB_URL)("e2e: эскалация и операторы (Фаз�
     expect(pushed.conversation_id).toBe(c);
     expect(pushed.reason).toBe("explicit_request");
 
-    // presence: подписчик получил operator:presence с online_count >= 1
-    const presence = await new Promise<number>((resolve, reject) => {
-      socket.on("operator:presence", (p: { online_count: number }) => resolve(p.online_count));
-      setTimeout(() => reject(new Error("no operator:presence push")), 5000);
-    });
-    expect(presence).toBeGreaterThanOrEqual(1);
+    expect(await presence).toBeGreaterThanOrEqual(1);
 
     socket.close();
   });
