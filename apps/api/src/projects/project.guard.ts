@@ -21,10 +21,12 @@ export class ProjectGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(ctx: ExecutionContext): boolean {
+    // Метаданные могут висеть и на классе контроллера (например, SandboxController),
+    // и на методе — читаем оба уровня с приоритетом метода
     const permission =
-      this.reflector.get<Permission.ManageProject | Permission.UseInbox>(
+      this.reflector.getAllAndOverride<Permission.ManageProject | Permission.UseInbox>(
         PROJECT_PERMISSION_KEY,
-        ctx.getHandler(),
+        [ctx.getHandler(), ctx.getClass()],
       ) ?? Permission.UseInbox;
 
     const req = ctx.switchToHttp().getRequest<AuthedRequest>();
