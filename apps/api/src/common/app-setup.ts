@@ -6,12 +6,17 @@ import type { INestApplication } from "@nestjs/common";
 import { HttpAdapterHost } from "@nestjs/core";
 import { Logger } from "nestjs-pino";
 import cookieParser from "cookie-parser";
+import express from "express";
 import { AllExceptionsFilter, DataEnvelopeInterceptor } from "./http";
 
 export function configureApp(app: INestApplication, opts: { developmentOrigin?: boolean } = {}): void {
   // Префиксы зон зашиты в путях контроллеров: /api/v1/*, /widget/v1/*, /health
   // (две независимые публичные зоны — IR-016)
   app.use(cookieParser());
+
+  // Body-limit согласован с контрактом знаний (реаудит RA-API-7): zod пускает
+  // text до 1 МБ, а дефолт express.json ~100 КБ давал невнятный 413 раньше
+  app.use(express.json({ limit: "2mb" }));
 
   // Заголовки безопасности (docs/15 §3). HSTS ставит Caddy на TLS-терминации.
   app.use((_req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {

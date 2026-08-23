@@ -82,7 +82,8 @@ export class InboxService {
       projectIds = scope.all ? null : scope.projectIds;
     }
     const limit = Math.min(Math.max(input.limit ?? 50, 1), 100);
-    const offset = Number.parseInt(input.cursor ?? "0", 10) || 0;
+    // Кламп курсора (реаудит RA-API-11): "-5" проходил parseInt и валил OFFSET
+    const offset = Math.max(0, Number.parseInt(input.cursor ?? "0", 10) || 0);
     return this.inboxRepo.listConversations({
       projectIds,
       states: input.states ?? null,

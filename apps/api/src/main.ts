@@ -64,6 +64,11 @@ async function bootstrap(): Promise<void> {
     const { createClient } = await import("redis");
     const pub = createClient({ url: env.REDIS_URL });
     const sub = pub.duplicate();
+    // Обработчики error обязательны (реаудит RA-API-10): необработанное событие
+    // node-redis валит процесс — сбой Redis не должен убивать api
+    const logger0 = app.get(Logger);
+    pub.on("error", (err) => logger0.error({ err }, "redis pub error"));
+    sub.on("error", (err) => logger0.error({ err }, "redis sub error"));
     await Promise.all([pub.connect(), sub.connect()]);
     // Для диагностики: «Redis инициализирован в этом процессе» (docs/30 §Ф7)
     registerRedisPubClient(pub);

@@ -3,6 +3,8 @@
  * приватных диапазонов, ручные редиректы с ревалидацией, лимиты размера/времени.
  */
 import { lookup } from "node:dns/promises";
+import http from "node:http";
+import https from "node:https";
 
 export type LookupFn = (hostname: string) => Promise<{ address: string }[]>;
 
@@ -118,6 +120,37 @@ export interface FetchedPage {
   finalUrl: string;
 }
 
+interface PinnedResponse {
+  status: number;
+  headers: http.IncomingHttpHeaders;
+  stream: http.IncomingMessage;
+}
+
+/**
+ * Запрос к ПРОВЕРЕННОМУ IP (реаудит RA-API-2): fetch() резолвит имя второй раз —
+ * атакующий DNS (TTL=0) отвечал публичным адресом на проверку и приватным на
+ * подключение (TOCTOU rebinding). Здесь подключение идёт ровно к адресу,
+ * который прошёл isPrivateIp; SNI/Host/TLS-валидация — по исходному имени.
+ */
+function pinnedRequest(url: URL, ip: string, signal: AbortSignal): Promise<PinnedResponse> {
+  return new Promise((resolve, reject) => {
+    const isTls = url.protocol === "https:";
+    const req = (isTls ? https : http).request({
+      host: ip,
+      port: url.port === "" ? (isTls ? 443 : 80) : Number(url.port),
+      path: `${url.pathname}${url.search}`,
+      method: "GET",
+      headers: { host: url.host, accept: "*/*", "user-agent": "unichat-ingest/1" },
+      servername: isTls ? url.hostname : undefined,
+      signal,
+    }, (res) => {
+      resolve({ status: res.statusCode ?? 0, headers: res.headers, stream: res });
+    });
+    req.on("error", reject);
+    req.end();
+  });
+}
+
 export async function fetchWithSsrfGuard(
   rawUrl: string,
   opts: { maxRedirects?: number; maxSizeBytes?: number; timeoutMs?: number } = {},
@@ -127,38 +160,41 @@ export async function fetchWithSsrfGuard(
   let current = rawUrl;
   for (let hop = 0; hop <= maxRedirects; hop++) {
     const url = await assertPublicHttpUrl(current);
+    const records = await defaultLookup(url.hostname).catch(() => {
+      throw new Error("DNS_RESOLVE_FAILED");
+    });
+    const ip = records[0]!.address;
+
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await fetch(url, { redirect: "manual", signal: controller.signal });
+      const res = await pinnedRequest(url, ip, controller.signal);
       if (res.status >= 300 && res.status < 400) {
-        const location = res.headers.get("location");
+        const location = res.headers.location?.[0];
         if (!location) throw new Error("REDIRECT_WITHOUT_LOCATION");
         current = new URL(location, url).toString(); // относительные редиректы
+        res.stream.resume(); // сливаем тело редиректа
         continue;
       }
-      if (!res.ok) throw new Error(`HTTP_${res.status}`);
-      const declared = Number(res.headers.get("content-length") ?? "0");
+      if (res.status < 200 || res.status >= 300) throw new Error(`HTTP_${res.status}`);
+      const declared = Number(res.headers["content-length"] ?? "0");
       if (declared > maxSizeBytes) throw new Error("TOO_LARGE");
 
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error("EMPTY_BODY");
-      const chunks: Uint8Array[] = [];
+      const chunks: Buffer[] = [];
       let received = 0;
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        received += value!.byteLength;
+      for await (const chunk of res.stream) {
+        const buf = chunk as Buffer;
+        received += buf.byteLength;
         if (received > maxSizeBytes) {
-          await reader.cancel();
+          res.stream.destroy();
           throw new Error("TOO_LARGE");
         }
-        chunks.push(value!);
+        chunks.push(buf);
       }
       const buffer = Buffer.concat(chunks);
       return {
         text: buffer.toString("utf8"),
-        contentType: res.headers.get("content-type") ?? "",
+        contentType: (res.headers["content-type"] as string | undefined) ?? "",
         finalUrl: url.toString(),
       };
     } finally {

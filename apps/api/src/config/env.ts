@@ -32,7 +32,19 @@ export const EnvSchema = z.object({
    *  api раздаёт /admin со SPA-fallback на index.html (реаудит RA-I-2).
    *  Не задан (dev) — админку отдаёт Vite :5173. */
   ADMIN_STATIC_DIR: z.string().min(1).optional(),
-});
+})
+  // Реаудит RA-API-1: без APP_SECRET все JWT подписываются пустым HMAC-ключом
+  // и AES-GCM-секреты выводятся из него же — в production это полный обход
+  // аутентификации. Fail-fast при старте вместо молчаливой дыры.
+  .superRefine((env, ctx) => {
+    if (env.NODE_ENV === "production" && !env.APP_SECRET) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["APP_SECRET"],
+        message: "APP_SECRET обязателен при NODE_ENV=production (минимум 16 символов)",
+      });
+    }
+  });
 
 export type Env = z.infer<typeof EnvSchema>;
 
