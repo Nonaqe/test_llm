@@ -74,15 +74,28 @@ export class WidgetApi {
     token?: string,
     extraHeaders?: Record<string, string>,
   ): Promise<T> {
-    const res = await fetch(this.baseUrl + path, {
-      method,
-      headers: {
-        ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...extraHeaders,
-      },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
+    let res: Response;
+    try {
+      res = await fetch(this.baseUrl + path, {
+        method,
+        headers: {
+          ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...extraHeaders,
+        },
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        // Подвисший TCP раньше клинил отправку на минуты (реаудит RA-W-6)
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch {
+      const err: WidgetApiError = {
+        status: 0,
+        code: "NETWORK",
+        message: "Сеть недоступна",
+        details: {},
+      };
+      throw err;
+    }
     const json = (await res.json().catch(() => null)) as
       | { data?: T; error?: { code: string; message: string; details?: Record<string, unknown> } }
       | null;

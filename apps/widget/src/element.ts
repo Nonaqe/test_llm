@@ -35,6 +35,23 @@ function lsSet(key: string, value: string): void {
   }
 }
 
+/** identify-атрибуты (PII) живут в sessionStorage — не переживают закрытие вкладки */
+function ssGet(key: string): string | null {
+  try {
+    return sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function ssSet(key: string, value: string): void {
+  try {
+    sessionStorage.setItem(key, value);
+  } catch {
+    /* приватный режим */
+  }
+}
+
 export class UniChatWidgetElement extends HTMLElement {
   static get observedAttributes(): string[] {
     return ["key", "server"];
@@ -60,9 +77,18 @@ export class UniChatWidgetElement extends HTMLElement {
   private operatorTypingTimer: ReturnType<typeof setTimeout> | null = null;
   /** Блокировка отправки при 429 (retry_after_s) */
   private rateLimitTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Активное окно rate-limit: гардит и кнопку, и Enter-путь handleSend */
+  private rateLimited = false;
   /** «Посетитель печатает» авто-stop (замыкание buildDom → поле для destroy) */
   private typingStopTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Троттлинг typingStart: не чаще раза в 1.5с (иначе событие на каждый символ) */
+  private typingSentAt = 0;
   private handoffRequested = false;
+  /** Поколение boot: перемещение элемента во время in-flight init инвалидирует старый прогон */
+  private bootGen = 0;
+  /** Ретрай первого init (краткий сбой сети не должен убивать виджет до F5) */
+  private bootRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  private bootAttempts = 0;
 
   // DOM-ссылки
   private refs: {
@@ -108,6 +134,22 @@ export class UniChatWidgetElement extends HTMLElement {
   disconnectedCallback(): void {
     this.destroyInternals();
     this.booted = false;
+  }
+
+  /**
+   * Смена key/server атрибутами (повторный ChatWidget.init на том же элементе):
+   * полная переинициализация. Раньше observedAttributes объявлялся, но callback
+   * отсутствовал — виджет молча работал со старым конфигом (RA-W-3).
+   */
+  attributeChangedCallback(name: string): void {
+    if (name !== "key" && name !== "server") return;
+    if (!this.shadow) return; // ещё не подключён — boot случится в connectedCallback
+    this.destroyInternals();
+    this.booted = false;
+    this.conversation = null;
+    this.lastSeq = 0;
+    ++this.bootGen; // инвалидируем in-flight boot старого конфига
+    void this.boot();
   }
 
   get key(): string | null {
@@ -185,7 +227,12 @@ export class UniChatWidgetElement extends HTMLElement {
     });
     input.addEventListener("input", () => {
       if (!this.conversation) return;
-      this.socket?.typingStart(this.conversation.id);
+      // Троттлинг start: раз в 1.5с, иначе событие на каждый символ (RA-W-11)
+      const now = Date.now();
+      if (now - this.typingSentAt > 1500) {
+        this.typingSentAt = now;
+        this.socket?.typingStart(this.conversation.id);
+      }
       if (this.typingStopTimer) clearTimeout(this.typingStopTimer);
       this.typingStopTimer = setTimeout(() => {
         if (this.conversation) this.socket?.typingStop(this.conversation.id);
@@ -214,6 +261,10 @@ export class UniChatWidgetElement extends HTMLElement {
     const key = this.key;
     if (!key || this.booted) return;
     this.booted = true;
+    // Поколение: если во время in-flight init элемент переподключили (новый
+    // connectedCallback → новый boot), старый прогон после каждого await
+    // проверяет актуальность и не трогает состояние (реаудит RA-W-8)
+    const gen = ++this.bootGen;
 
     const baseUrl = this.resolveBaseUrl();
     this.api = new WidgetApi(baseUrl);
@@ -224,10 +275,18 @@ export class UniChatWidgetElement extends HTMLElement {
       anonId = randomId();
       lsSet(anonKey, anonId);
     }
-    const attributes = JSON.parse(lsGet(`unichat:identify:${key}`) ?? "{}") as Record<
-      string,
-      unknown
-    >;
+    // Битая запись localStorage не должна валить весь boot (RA-W-4)
+    const attributes: Record<string, unknown> = {};
+    try {
+      const parsed = JSON.parse(ssGet(`unichat:identify:${key}`) ?? "{}") as unknown;
+      if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+        for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+          if (k !== "__proto__" && k !== "constructor") attributes[k] = v;
+        }
+      }
+    } catch {
+      ssSet(`unichat:identify:${key}`, "{}");
+    }
 
     this.setStatus("connecting");
     try {
@@ -236,6 +295,7 @@ export class UniChatWidgetElement extends HTMLElement {
         anon_id: anonId,
         attributes,
       });
+      if (gen !== this.bootGen) return; // устаревший прогон — выходим без побочек
       this.token = res.visitor_token;
       this.config = res.widget;
       this.applyStrings();
@@ -246,16 +306,36 @@ export class UniChatWidgetElement extends HTMLElement {
       if (res.conversation) {
         this.conversation = res.conversation;
         await this.catchUp();
+        if (gen !== this.bootGen) return;
       }
       this.connectSocket();
       this.setStatus(null);
+      this.bootAttempts = 0;
     } catch (err) {
+      if (gen !== this.bootGen) return;
+      // Ретрай первого init с backoff 1..16с: краткий сбой сети/рестарт API
+      // раньше убивал виджет до конца жизни страницы (RA-W-5)
+      if (this.bootAttempts < 5) {
+        const delayMs = Math.min(1000 * 2 ** this.bootAttempts, 16_000);
+        this.bootAttempts += 1;
+        this.setStatus("connecting");
+        this.bootRetryTimer = setTimeout(() => {
+          this.bootRetryTimer = null;
+          if (gen !== this.bootGen) return;
+          this.booted = false;
+          void this.boot();
+        }, delayMs);
+        return;
+      }
       this.setStatus("error", err);
     }
   }
 
   private connectSocket(): void {
     if (!this.api || !this.token) return;
+    // Двойной boot (гонка перемещения элемента) затирал ссылку на живой сокет —
+    // закрываем предыдущий перед созданием нового (RA-W-8)
+    this.socket?.close();
     this.socket = new WidgetSocket(this.resolveBaseUrl(), this.token, {
       onMessage: (m) => this.handleIncoming(m),
       onState: (p) => this.handleState(p.state),
@@ -269,12 +349,22 @@ export class UniChatWidgetElement extends HTMLElement {
           void this.socket?.join(this.conversation.id).then(() => this.catchUp());
         }
       },
-      onDisconnect: () => {
+      onDisconnect: (reason) => {
         this.setDot(false);
+        // «io server disconnect» = сервер сам разорвал соединение (истёкший
+        // visitor-JWT при проверке в handshake): polling с мёртвым токеном
+        // бессмыслен — переинициализация получает свежий токен (RA-W-2)
+        if (reason === "io server disconnect") {
+          this.socket?.close();
+          this.socket = null;
+          this.booted = false;
+          void this.boot();
+          return;
+        }
         this.startPolling();
       },
-      // Истёк visitor-JWT (VISITOR_TOKEN_INVALID): тихий реконнект-цикл без пользы —
-      // переинициализация получает свежий токен (аудит IR-059)
+      // Истёк visitor-JWT (VISITOR_TOKEN_INVALID из handshake-middleware):
+      // тихий реконнект-цикл без пользы — переинициализация со свежим токеном
       onConnectError: (err) => {
         if (/VISITOR_TOKEN_INVALID|401/i.test(err.message)) {
           this.socket?.close();
@@ -297,6 +387,8 @@ export class UniChatWidgetElement extends HTMLElement {
   private async handleSend(): Promise<void> {
     const refs = this.refs;
     if (!refs || !this.api || !this.token) return;
+    // Гард окна rate-limit: закрывает и Enter-путь (кнопка disabled обходится)
+    if (this.rateLimited) return;
     const text = refs.input.value.trim();
     if (!text) return;
     refs.input.value = "";
@@ -315,11 +407,14 @@ export class UniChatWidgetElement extends HTMLElement {
       const e = err as WidgetApiError;
       refs.input.value = text; // не теряем введённое
       if (e.code === "RATE_LIMITED") {
-        // Блокируем отправку на retry_after_s (аудит IR-059: спам продолжался)
+        // Блокируем отправку на retry_after_s (аудит IR-059; реаудит RA-W-1:
+        // finally переоткрывал кнопку мгновенно, Enter шёл мимо disabled)
         const details = e.details as { retry_after_s?: number } | undefined;
         const waitS = Math.min(Math.max(Number(details?.retry_after_s) || 30, 1), 120);
+        this.rateLimited = true;
         refs.send.disabled = true;
         this.rateLimitTimer = setTimeout(() => {
+          this.rateLimited = false;
           const r = this.refs;
           if (r) r.send.disabled = false;
         }, waitS * 1000);
@@ -328,7 +423,8 @@ export class UniChatWidgetElement extends HTMLElement {
         this.setStatus("error", err);
       }
     } finally {
-      refs.send.disabled = false;
+      // Переоткрытие только вне окна rate-limit
+      if (!this.rateLimited) refs.send.disabled = false;
       refs.input.focus();
     }
   }
@@ -374,7 +470,10 @@ export class UniChatWidgetElement extends HTMLElement {
       if (this.refs) this.refs.handoffBtn.disabled = true;
     } else if (state === "AI_ACTIVE" || state === "RESOLVED" || state === "CLOSED") {
       // Возврат под AI/закрытие: статус «оператор подключается…» снимаем
-      // (раньше зависал навсегда — аудит IR-059)
+      // (раньше зависал навсегда — аудит IR-059); флаг вызова оператора тоже
+      // сбрасываем — иначе после RESOLVED кнопка мертва до F5 (RA-W-9)
+      this.handoffRequested = false;
+      if (this.refs) this.refs.handoffBtn.disabled = false;
       this.setStatus(null);
     }
   }
@@ -524,7 +623,9 @@ export class UniChatWidgetElement extends HTMLElement {
   identify(attributes: { name?: string; email?: string }): void {
     const key = this.key;
     if (!key) return;
-    lsSet(`unichat:identify:${key}`, JSON.stringify(attributes));
+    // sessionStorage: PII не переживает закрытие вкладки и недоступна
+    // сторонним скриптам после сессии (RA-W-10)
+    ssSet(`unichat:identify:${key}`, JSON.stringify(attributes));
   }
 
   open(): void {
@@ -554,6 +655,9 @@ export class UniChatWidgetElement extends HTMLElement {
     this.rateLimitTimer = null;
     if (this.typingStopTimer) clearTimeout(this.typingStopTimer);
     this.typingStopTimer = null;
+    if (this.bootRetryTimer) clearTimeout(this.bootRetryTimer);
+    this.bootRetryTimer = null;
+    this.rateLimited = false;
     this.socket?.close();
     this.socket = null;
     this.messages.clear();

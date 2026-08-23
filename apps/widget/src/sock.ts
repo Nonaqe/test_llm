@@ -3,18 +3,20 @@
  * события message / conversation:state (docs/07 §4).
  */
 import { io, type Socket } from "socket.io-client";
-import type { WidgetMessageDto } from "@uni-chat/shared";
+import type { ConversationState, WidgetMessageDto } from "@uni-chat/shared";
 
 export interface SocketHandlers {
   onMessage: (message: WidgetMessageDto) => void;
-  onState: (payload: { conversation_id: string; state: string }) => void;
+  /** state типизован shared-контрактом (реаудит RA-W-13) */
+  onState: (payload: { conversation_id: string; state: ConversationState }) => void;
   onAiToken: (payload: { token: string }) => void;
   /** Есть ли операторы онлайн у проекта (docs/07 §4.1, docs/13 §5) */
   onPresence: (payload: { online: boolean }) => void;
   /** Оператор набирает ответ (TTL на клиенте) */
   onOperatorTyping: () => void;
   onConnect: () => void;
-  onDisconnect: () => void;
+  /** reason из socket.io — «io server disconnect» означает решение сервера */
+  onDisconnect: (reason: string) => void;
   /** Ошибка подключения (истёк visitor-JWT, сеть) — элемент решает: re-init */
   onConnectError?: (err: Error) => void;
 }
@@ -33,7 +35,7 @@ export class WidgetSocket {
     this.socket.on("presence:operators", handlers.onPresence);
     this.socket.on("operator:typing", () => handlers.onOperatorTyping());
     this.socket.on("connect", handlers.onConnect);
-    this.socket.on("disconnect", handlers.onDisconnect);
+    this.socket.on("disconnect", (reason: string) => handlers.onDisconnect(reason));
     if (handlers.onConnectError) {
       this.socket.on("connect_error", (err: Error) => handlers.onConnectError!(err));
     }

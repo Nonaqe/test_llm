@@ -9,6 +9,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
   OnGatewayConnection,
+  OnGatewayInit,
 } from "@nestjs/websockets";
 import { Inject, Logger, forwardRef } from "@nestjs/common";
 import { Server, Socket } from "socket.io";
@@ -30,9 +31,11 @@ interface WidgetClient extends Socket {
 
 @WebSocketGateway({
   namespace: "/widget",
-  cors: { origin: true, credentials: true },
+  // credentials=false: токен ходит в handshake.auth.token, куки не участвуют;
+  // origin не ограничиваем — виджет встраивается на любые сайты (docs/07 §4.1)
+  cors: { origin: true, credentials: false },
 })
-export class WidgetGateway implements OnGatewayConnection {
+export class WidgetGateway implements OnGatewayConnection, OnGatewayInit {
   private readonly logger = new Logger(WidgetGateway.name);
 
   @WebSocketServer()
@@ -45,14 +48,30 @@ export class WidgetGateway implements OnGatewayConnection {
     private readonly presence: PresenceService,
   ) {}
 
+  /**
+   * Проверка visitor-JWT в handshake-middleware (реаудит RA-W-2): раньше была
+   * в handleConnection — ПОСЛЕ установления соединения, поэтому клиент при
+   * невалидном токене получал «disconnect», а не connect_error с кодом, и
+   * ветка восстановления виджета оставалась мёртвым кодом.
+   */
+  afterInit(server: Server): void {
+    server.use((socket, next) => {
+      const token = (socket.handshake.auth as { token?: string }).token;
+      const payload = verifyVisitorToken(token ?? "", this.env.APP_SECRET ?? "");
+      if (!payload) {
+        next(new Error("VISITOR_TOKEN_INVALID"));
+        return;
+      }
+      (socket as WidgetClient).visitor = payload;
+      next();
+    });
+  }
+
   async handleConnection(client: WidgetClient): Promise<void> {
-    const token = (client.handshake.auth as { token?: string }).token;
-    const payload = token ? verifyVisitorToken(token, this.env.APP_SECRET ?? "") : null;
-    if (!payload) {
+    // Основная проверка — в afterInit; здесь только защита от отсутствия payload
+    if (!client.visitor) {
       client.disconnect(true);
-      return;
     }
-    client.visitor = payload;
   }
 
   @SubscribeMessage("widget:join")
