@@ -7,9 +7,22 @@ import { Inject, Injectable } from "@nestjs/common";
 import { fuseByRrf, type RetrievedChunk } from "@uni-chat/core";
 import type { Pool } from "pg";
 import { PG } from "../db/db.module";
-import { AiProviderService } from "../ai/ai-provider.service";
+import { AiProviderService, embeddingModelTag } from "../ai/ai-provider.service";
 
 const CANDIDATES_PER_LEG = 20;
+
+// Живые чанки только (реаудит RA-API-4/5): документ ready, FAQ enabled,
+// embedding-модель совпадает с активной — иначе «выключенный» FAQ отвечал,
+// а смена модели смешивала несравнимые векторные пространства.
+const LIVE_FROM = `
+  from chunks c
+  left join documents d on d.id = c.source_document_id
+  left join faqs f on f.id = c.source_faq_id`;
+
+const livePredicate = (modelParam: string): string => `
+  c.embedding_model = ${modelParam}
+  and (c.source_document_id is null or d.status = 'ready')
+  and (c.source_faq_id is null or f.enabled = true)`;
 
 interface ChunkRow {
   id: string;
@@ -39,26 +52,28 @@ export class RetrievalService {
   ): Promise<RetrievalResult> {
     if (!this.db) throw new Error("DATABASE_URL не настроен");
 
-    const [vector] = await (await this.providers.embedding()).embed([query]);
+    const provider = await this.providers.embedding();
+    const modelTag = embeddingModelTag(provider);
+    const [vector] = await provider.embed([query]);
     const vectorLiteral = `[${vector!.join(",")}]`;
 
     // Нога 1: векторный топ
     const { rows: vecRows } = await this.db.query<{ id: string }>(
-      `select id from chunks
-       where project_id = $1
-       order by embedding <=> $2::vector
+      `select c.id ${LIVE_FROM}
+       where c.project_id = $1::uuid and ${livePredicate("$3::text")}
+       order by c.embedding <=> $2::vector
        limit ${CANDIDATES_PER_LEG}`,
-      [projectId, vectorLiteral],
+      [projectId, vectorLiteral, modelTag],
     );
     const vectorRanked = vecRows.map((r) => r.id);
 
     // Нога 2: полнотекстовый топ ('simple'; ru/en stemming — D-2, docs/06 §5)
     const { rows: ftsRows } = await this.db.query<{ id: string }>(
-      `select id from chunks, websearch_to_tsquery('simple', $2) q
-       where project_id = $1 and tsv @@ q
-       order by ts_rank(tsv, q) desc
+      `select c.id ${LIVE_FROM}, websearch_to_tsquery('simple', $2::text) q
+       where c.project_id = $1::uuid and ${livePredicate("$3::text")} and c.tsv @@ q
+       order by ts_rank(c.tsv, q) desc
        limit ${CANDIDATES_PER_LEG}`,
-      [projectId, query],
+      [projectId, query, modelTag],
     );
     const ftsRanked = ftsRows.map((r) => r.id);
 
@@ -72,15 +87,15 @@ export class RetrievalService {
     }
 
     // Косинус фьюжн-топа — метрика гейта (док термина: гейт по близости, ранжирование по RRF)
-    // ВАЖНО: $1 обязателен в тексте — неиспользуемый параметр даёт
-    // «could not determine data type of parameter $1» (pg_analyze_and_rewrite_varparams)
+    // ВАЖНО (PGlite): НЕИСПОЛЬЗУЕМЫЙ параметр даёт «could not determine data
+    // type» — поэтому здесь ровно 4 параметра, без query из фьюжн-стадии
     const { rows: chunkRows } = await this.db.query<ChunkRow & { cosine: string }>(
-      `select id, source_document_id, source_faq_id, content, metadata,
-              (1 - (embedding <=> $3::vector)) as cosine
-       from chunks
-       where project_id = $1 and id = any($2::uuid[])
-       order by embedding <=> $3::vector`,
-      [projectId, topIds, vectorLiteral],
+      `select c.id, c.source_document_id, c.source_faq_id, c.content, c.metadata,
+              (1 - (c.embedding <=> $2::vector)) as cosine
+       ${LIVE_FROM}
+       where c.project_id = $1::uuid and ${livePredicate("$3::text")} and c.id = any($4::uuid[])
+       order by c.embedding <=> $2::vector`,
+      [projectId, vectorLiteral, modelTag, topIds],
     );
 
     const byId = new Map(chunkRows.map((r) => [r.id, r]));

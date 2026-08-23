@@ -13,6 +13,13 @@ export const PG = Symbol("PG");
  * привязать к конкретному SQL в логах/CI.
  */
 function attachQueryText(pool: Pool): Pool {
+  // Необработанная ошибка idle-клиента пула (например, сбой протокола у
+  // встраиваемого PGlite или разрыв TCP) раньше валила процесс API —
+  // глотаем в лог и продолжаем: pg-pool сам выкинет мёртвый клиент
+  // (реаудит RA-API-10, симметрично redis-клиентам в main.ts)
+  pool.on("error", (err) => {
+    console.error("[db] idle client error", err.message);
+  });
   const original = pool.query.bind(pool);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   pool.query = async (...args: any[]): Promise<QueryResult> => {

@@ -158,6 +158,26 @@ export class FaqsRepo {
 export class ChunksRepo {
   constructor(@Inject(PG) private readonly db: Pool | null) {}
 
+  /**
+   * Транзакционный swap (реаудит RA-API-6): insert новой версии + delete старой
+   * в одном BEGIN/COMMIT — крэш между шагами больше не оставляет обе версии.
+   */
+  private async inTransaction<T>(fn: (query: Pool["query"]) => Promise<T>): Promise<T> {
+    if (!this.db) throw new Error("DATABASE_URL не настроен");
+    const client = await this.db.connect();
+    try {
+      await client.query("begin");
+      const result = await fn(client.query.bind(client));
+      await client.query("commit");
+      return result;
+    } catch (err) {
+      await client.query("rollback").catch(() => undefined);
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
   async replaceForDocument(input: {
     projectId: string;
     documentId: string;
@@ -168,13 +188,16 @@ export class ChunksRepo {
   }): Promise<number> {
     const chunks = chunkText(input.text);
     if (chunks.length === 0) throw new Error("no_text: документ не содержит извлекаемого текста");
-    const inserted = await this.insertChunks(
-      { projectId: input.projectId, documentId: input.documentId, faqId: null, version: input.version, embeddingModel: input.embeddingModel, embed: input.embed },
-      chunks.map((c) => ({ content: c.content, tokenCount: c.tokenCount, metadata: { heading: c.heading } })),
-    );
-    // Атомарный swap: старая версия удаляется только после успешной индексации новой (docs/12 §5)
-    await this.deleteForDocumentOlderThan(input.documentId, input.version);
-    return inserted;
+    return this.inTransaction(async (query) => {
+      const inserted = await this.insertChunks(
+        { projectId: input.projectId, documentId: input.documentId, faqId: null, version: input.version, embeddingModel: input.embeddingModel, embed: input.embed },
+        chunks.map((c) => ({ content: c.content, tokenCount: c.tokenCount, metadata: { heading: c.heading } })),
+        query,
+      );
+      // Атомарный swap: старая версия удаляется только после успешной индексации новой (docs/12 §5)
+      await query("delete from chunks where source_document_id = $1 and source_version < $2", [input.documentId, input.version]);
+      return inserted;
+    });
   }
 
   // replaceForFaq перенесён в конец файла рядом с deleteForFaq
@@ -189,8 +212,8 @@ export class ChunksRepo {
       embed: (texts: string[]) => Promise<number[][]>;
     },
     chunks: Array<{ content: string; tokenCount: number; metadata: Record<string, unknown> }>,
+    query: Pool["query"],
   ): Promise<number> {
-    if (!this.db) throw new Error("DATABASE_URL не настроен");
     const BATCH = 64;
     for (let offset = 0; offset < chunks.length; offset += BATCH) {
       const batch = chunks.slice(offset, offset + BATCH);
@@ -211,21 +234,13 @@ export class ChunksRepo {
         );
         return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}::vector, $${base + 7}::jsonb, $${base + 8}, $${base + 9})`;
       });
-      await this.db.query(
+      await query(
         `insert into chunks (project_id, source_document_id, source_faq_id, content, token_count, embedding, metadata, embedding_model, source_version)
          values ${tuples.join(", ")}`,
         params,
       );
     }
     return chunks.length;
-  }
-
-  async deleteForDocumentOlderThan(documentId: string, version: number): Promise<void> {
-    if (!this.db) throw new Error("DATABASE_URL не настроен");
-    await this.db.query(
-      "delete from chunks where source_document_id = $1 and source_version < $2",
-      [documentId, version],
-    );
   }
 
   async deleteForFaq(faqId: string): Promise<void> {
@@ -243,28 +258,31 @@ export class ChunksRepo {
   }): Promise<number> {
     const content = `Вопрос: ${input.question}\nОтвет: ${input.answer}`;
     // Симметрично документам (аудит IR-059): новая версия вставляется ДО
-    // удаления старой — сбой эмбеддинга больше не оставляет FAQ без чанков.
-    if (!this.db) throw new Error("DATABASE_URL не настроен");
-    const { rows } = await this.db.query<{ max_version: number | null }>(
-      "select max(source_version)::int as max_version from chunks where source_faq_id = $1",
-      [input.faqId],
-    );
-    const nextVersion = (rows[0]?.max_version ?? 0) + 1;
-    const inserted = await this.insertChunks(
-      {
-        projectId: input.projectId,
-        documentId: null,
-        faqId: input.faqId,
-        version: nextVersion,
-        embeddingModel: input.embeddingModel,
-        embed: input.embed,
-      },
-      [{ content, tokenCount: Math.ceil(content.length / 4), metadata: { kind: "faq" } }],
-    );
-    await this.db.query(
-      "delete from chunks where source_faq_id = $1 and source_version < $2",
-      [input.faqId, nextVersion],
-    );
-    return inserted;
+    // удаления старой; теперь ещё и в транзакции, а версия защищена unique
+    // индексом (реаудит RA-API-6) — параллельный reindex даёт 23505, а не дубли
+    return this.inTransaction(async (query) => {
+      const { rows } = await query<{ max_version: number | null }>(
+        "select max(source_version)::int as max_version from chunks where source_faq_id = $1",
+        [input.faqId],
+      );
+      const nextVersion = (rows[0]?.max_version ?? 0) + 1;
+      const inserted = await this.insertChunks(
+        {
+          projectId: input.projectId,
+          documentId: null,
+          faqId: input.faqId,
+          version: nextVersion,
+          embeddingModel: input.embeddingModel,
+          embed: input.embed,
+        },
+        [{ content, tokenCount: Math.ceil(content.length / 4), metadata: { kind: "faq" } }],
+        query,
+      );
+      await query(
+        "delete from chunks where source_faq_id = $1 and source_version < $2",
+        [input.faqId, nextVersion],
+      );
+      return inserted;
+    });
   }
 }

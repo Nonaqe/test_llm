@@ -10,7 +10,7 @@ import path from "node:path";
 import { ENV, type Env } from "../config/env";
 import { AppError } from "../common/http";
 import { EventsRepo } from "../db/repositories";
-import { AiProviderService } from "../ai/ai-provider.service";
+import { AiProviderService, embeddingModelTag } from "../ai/ai-provider.service";
 import { ChunksRepo, DocumentsRepo, FaqsRepo, type DocumentRow } from "./knowledge.repos";
 import { detectKind, extractText, type SourceKind } from "./parsers";
 import { fetchWithSsrfGuard } from "./ssrf";
@@ -150,7 +150,7 @@ export class KnowledgeService {
         faqId: faq.id,
         question,
         answer,
-        embeddingModel: provider.name === "fake" ? "fake-hashing-1536" : `${provider.name}:${provider.dimension}`,
+        embeddingModel: embeddingModelTag(provider),
         embed: (texts) => provider.embed(texts),
       });
     });
@@ -170,7 +170,7 @@ export class KnowledgeService {
           faqId,
           question: updated.question,
           answer: updated.answer,
-          embeddingModel: provider.name === "fake" ? "fake-hashing-1536" : `${provider.name}:${provider.dimension}`,
+          embeddingModel: embeddingModelTag(provider),
           embed: (texts) => provider.embed(texts),
         });
       });
@@ -225,7 +225,7 @@ export class KnowledgeService {
         documentId: docId,
         version,
         text,
-        embeddingModel: provider.name === "fake" ? "fake-hashing-1536" : `${provider.name}:${provider.dimension}`,
+        embeddingModel: embeddingModelTag(provider),
         embed: (texts) => provider.embed(texts),
       });
       await this.documents.setStatus(docId, "ready");

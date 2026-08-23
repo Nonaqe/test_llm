@@ -25,6 +25,15 @@ export interface AiProviderConfig {
 
 const CACHE_TTL_MS = 30_000;
 
+/**
+ * Единый тег embedding-модели для chunks.embedding_model (реаудит RA-API-5):
+ * раньше строку собирали в трёх местах knowledge.service и НЕ читали в
+ * retrieval — смена модели оставляла старые чанки в векторном поиске.
+ */
+export function embeddingModelTag(provider: { name: string; dimension: number }): string {
+  return provider.name === "fake" ? "fake-hashing-1536" : `${provider.name}:${provider.dimension}`;
+}
+
 @Injectable()
 export class AiProviderService {
   private cached: { config: AiProviderConfig; apiKey: string; at: number } | null = null;
