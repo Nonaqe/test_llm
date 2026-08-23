@@ -141,16 +141,18 @@ await call("PATCH", `/api/v1/projects/${project.id}/assistant`, {
 });
 console.log("✓ assistant: score_threshold=0.3");
 
-// 6. AI-провайдер: opencode zen (реальная LLM, эмбеддинги — fake-гибрид)
-await call("PUT", "/api/v1/settings/ai_provider.kind", { key: "ai_provider.kind", value: "openai_compatible" });
-await call("PUT", "/api/v1/settings/ai_provider.base_url", { key: "ai_provider.base_url", value: "https://opencode.ai/zen/v1" });
-await call("PUT", "/api/v1/settings/ai_provider.chat_model", { key: "ai_provider.chat_model", value: CHAT_MODEL });
-await call("PUT", "/api/v1/settings/ai_provider.embedding_model", { key: "ai_provider.embedding_model", value: "" });
+// 6. AI-провайдер: opencode zen (реальная LLM, эмбеддинги — fake-гибрид).
+// Без ZEN_KEY остаёмся на дефолтном kind=fake — демо отвечает заготовками,
+// а не падает с 502 на каждом сообщении (аудит IR-059)
 if (ZEN_KEY) {
+  await call("PUT", "/api/v1/settings/ai_provider.kind", { key: "ai_provider.kind", value: "openai_compatible" });
+  await call("PUT", "/api/v1/settings/ai_provider.base_url", { key: "ai_provider.base_url", value: "https://opencode.ai/zen/v1" });
+  await call("PUT", "/api/v1/settings/ai_provider.chat_model", { key: "ai_provider.chat_model", value: CHAT_MODEL });
+  await call("PUT", "/api/v1/settings/ai_provider.embedding_model", { key: "ai_provider.embedding_model", value: "" });
   await call("PUT", "/api/v1/settings/ai_provider.api_key", { key: "ai_provider.api_key", value: ZEN_KEY, is_secret: true });
-  console.log("✓ api_key сохранён (шифруется AES-256-GCM)");
+  console.log(`✓ провайдер opencode zen (${CHAT_MODEL}), api_key зашифрован AES-256-GCM`);
 } else {
-  console.log("⚠ ZEN_KEY не задан — чат будет падать с 502; перезапусти: ZEN_KEY=sk-... node demo/seed.mjs");
+  console.log("⚠ ZEN_KEY не задан — работаем на kind=fake (заготовленные ответы)");
 }
 
 const check = await call("POST", "/api/v1/settings/ai-provider/check");

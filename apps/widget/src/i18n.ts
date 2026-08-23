@@ -14,6 +14,10 @@ export interface WidgetStrings {
   /** Кнопка «позвать оператора» в шапке (docs/14 §2) */
   callOperator: string;
   handoffRequested: string;
+  /** ARIA-подписи (аудит IR-059: были захардкожены по-русски) */
+  close: string;
+  messageInput: string;
+  openChat: string;
 }
 
 const ru: WidgetStrings = {
@@ -28,6 +32,9 @@ const ru: WidgetStrings = {
   genericError: "Ошибка отправки. Попробуйте ещё раз",
   callOperator: "Позвать оператора",
   handoffRequested: "Оператор вызван",
+  close: "Закрыть",
+  messageInput: "Сообщение",
+  openChat: "Открыть чат",
 };
 
 const en: WidgetStrings = {
@@ -42,6 +49,9 @@ const en: WidgetStrings = {
   genericError: "Failed to send. Please try again",
   callOperator: "Call an operator",
   handoffRequested: "Operator called",
+  close: "Close",
+  messageInput: "Message",
+  openChat: "Open chat",
 };
 
 export function stringsFor(locale: string): WidgetStrings {

@@ -109,6 +109,8 @@ export interface AdminClientToServerEvents {
   "admin:unsubscribe_project": (payload: { project_id: string }) => void;
   /** Пульс оператора (TTL 60 c, admin.gateway): поддерживает «операторы онлайн» */
   "presence:heartbeat": (payload: { project_id: string }) => void;
+  /** Релей «оператор набирает…» в /widget (docs/13 §5) */
+  "admin:typing": (payload: { conversation_id: string }) => void;
 }
 
 export interface AdminServerToClientEvents {

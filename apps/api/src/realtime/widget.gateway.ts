@@ -10,7 +10,7 @@ import {
   WebSocketServer,
   OnGatewayConnection,
 } from "@nestjs/websockets";
-import { Inject, Logger } from "@nestjs/common";
+import { Inject, Logger, forwardRef } from "@nestjs/common";
 import { Server, Socket } from "socket.io";
 import type { WidgetMessageDto } from "@uni-chat/shared";
 import { ConversationState } from "@uni-chat/shared";
@@ -41,7 +41,7 @@ export class WidgetGateway implements OnGatewayConnection {
   constructor(
     @Inject(ENV) private readonly env: Env,
     private readonly conversations: ConversationsRepo,
-    private readonly admin: AdminGateway,
+    @Inject(forwardRef(() => AdminGateway)) private readonly admin: AdminGateway,
     private readonly presence: PresenceService,
   ) {}
 

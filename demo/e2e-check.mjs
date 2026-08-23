@@ -3,7 +3,9 @@
  * Тот же путь, что и у виджета в браузере. Запуск: node demo/e2e-check.mjs
  */
 const API = process.env.API_URL ?? "http://127.0.0.1:3000";
-const KEY = "VMEZpLLhEijQg4rAPeeOKCiA0ETwsd-c";
+// Ключ меняется при пересиде БД — актуальный печатает seed.mjs (DEMO READY);
+// WIDGET_KEY env перекрывает дефолт
+const KEY = process.env.WIDGET_KEY ?? "l09TXvpj_zfT_9W3mF-IzzbiUD85XvNd";
 
 let visitor = "";
 const call = async (method, path, body) => {
@@ -70,3 +72,5 @@ console.log(answer.content);
 console.log("────────────────────────");
 console.log("citations:", JSON.stringify(answer.citations ?? []));
 console.log("confidence:", answer.confidence ?? "(нет)");
+// Явный exit: без него node24/undici на Windows падает в libuv-ассерте при дренировании keep-alive
+process.exit(0);

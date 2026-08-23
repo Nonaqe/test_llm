@@ -306,11 +306,15 @@ export function InboxPage() {
   projectIdRef.current = projectId;
   const selectedIdRef = useRef<string | null>(null);
   selectedIdRef.current = selectedId;
+  // Сокет и таймер typing — вне эффекта: релей «оператор набирает…» из onChange
+  const socketRef = useRef<AdminSocket | null>(null);
+  const typingTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!ADMIN_SOCKET_ENABLED) return;
 
     const socket: AdminSocket = connectAdminSocket();
+    socketRef.current = socket;
     const refreshAll = (): void => {
       void loadConversations();
       void loadPendingHandoffs();
@@ -363,6 +367,7 @@ export function InboxPage() {
 
     return () => {
       clearInterval(heartbeat);
+      socketRef.current = null;
       socket.disconnect();
     };
   }, [loadConversations, loadPendingHandoffs, loadDetail, pushToast, t]);
@@ -556,7 +561,18 @@ export function InboxPage() {
                 <textarea
                   value={draft}
                   placeholder={isNote ? t("inbox.notePlaceholder") : t("inbox.replyPlaceholder")}
-                  onChange={(e) => setDraft(e.target.value)}
+                  onChange={(e) => {
+                    setDraft(e.target.value);
+                    // Релей «оператор набирает…» посетителю (docs/13 §5, IR-059):
+                    // не для внутренних заметок; debounce 2 с
+                    if (!isNote && selectedIdRef.current !== null) {
+                      const convId = selectedIdRef.current;
+                      if (typingTimerRef.current !== null) clearTimeout(typingTimerRef.current);
+                      typingTimerRef.current = window.setTimeout(() => {
+                        socketRef.current?.emit("admin:typing", { conversation_id: convId });
+                      }, 400);
+                    }
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();

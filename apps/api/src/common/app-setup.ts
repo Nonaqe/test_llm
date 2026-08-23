@@ -36,7 +36,8 @@ export function configureApp(app: INestApplication, opts: { developmentOrigin?: 
     if (origin) {
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Vary", "Origin");
-      res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
+      // Виджет использует только GET/POST (аудит IR-059: методы были шире нужного)
+      res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
       res.setHeader("Access-Control-Allow-Headers", "Authorization,Content-Type,Idempotency-Key");
       res.setHeader("Access-Control-Max-Age", "600");
     }

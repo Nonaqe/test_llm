@@ -94,15 +94,20 @@ export class UniChatWidgetElement extends HTMLElement {
   }
 
   connectedCallback(): void {
-    if (this.shadow) return;
-    this.shadow = this.attachShadow({ mode: "open" });
-    this.shadow.innerHTML = "";
-    this.buildDom();
+    if (!this.shadow) {
+      this.shadow = this.attachShadow({ mode: "open" });
+      this.shadow.innerHTML = "";
+      this.buildDom();
+    }
+    // Повторное подключение (элемент перемещали в дереве): internals были
+    // убиты в disconnectedCallback — поднимаем заново (аудит IR-059:
+    // booted/shadow не сбрасывались и виджет оставался пустым)
     if (this.getAttribute("key")) void this.boot();
   }
 
   disconnectedCallback(): void {
     this.destroyInternals();
+    this.booted = false;
   }
 
   get key(): string | null {
@@ -141,7 +146,7 @@ export class UniChatWidgetElement extends HTMLElement {
     handoffBtn.addEventListener("click", () => void this.handleHandoff());
     const closeBtn = document.createElement("button");
     closeBtn.textContent = "×";
-    closeBtn.setAttribute("aria-label", "Закрыть");
+    closeBtn.setAttribute("aria-label", this.strings.close);
     closeBtn.addEventListener("click", () => this.close());
     header.append(dot, title, handoffBtn, closeBtn);
 
@@ -164,7 +169,7 @@ export class UniChatWidgetElement extends HTMLElement {
     const input = document.createElement("textarea");
     input.rows = 1;
     input.placeholder = "";
-    input.setAttribute("aria-label", "Сообщение");
+    input.setAttribute("aria-label", this.strings.messageInput);
     const send = document.createElement("button");
     send.type = "submit";
     form.append(input, send);
@@ -191,7 +196,7 @@ export class UniChatWidgetElement extends HTMLElement {
 
     const launcher = document.createElement("button");
     launcher.className = "launcher";
-    launcher.setAttribute("aria-label", "Открыть чат");
+    launcher.setAttribute("aria-label", this.strings.openChat);
     launcher.textContent = "💬";
     const badge = document.createElement("span");
     badge.className = "badge";

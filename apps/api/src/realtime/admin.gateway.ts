@@ -6,7 +6,7 @@
  * открываются только после проверки UseInbox (docs/15 §2).
  */
 import { SubscribeMessage, WebSocketGateway, WebSocketServer, OnGatewayConnection, OnGatewayDisconnect } from "@nestjs/websockets";
-import { Inject, Logger } from "@nestjs/common";
+import { Inject, Logger, forwardRef } from "@nestjs/common";
 import { Server, Socket } from "socket.io";
 import type {
   AdminConversationDto,
@@ -21,6 +21,7 @@ import { UsersPrincipalLoader } from "../auth/principal-loader";
 import { verifyAccessToken } from "../auth/tokens";
 import { SESSION_COOKIE } from "../auth/jwt-auth.guard";
 import { PresenceService } from "./presence.service";
+import { WidgetGateway } from "./widget.gateway";
 
 export function adminProjectRoom(projectId: string): string {
   return `admin:project:${projectId}`;
@@ -47,6 +48,8 @@ export class AdminGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @Inject(ENV) private readonly env: Env,
     private readonly usersLoader: UsersPrincipalLoader,
     private readonly presence: PresenceService,
+    // Цикл widget↔admin: widget шлёт операторам visitor-typing, здесь — обратный релей
+    @Inject(forwardRef(() => WidgetGateway)) private readonly widgets: WidgetGateway,
   ) {}
 
   async handleConnection(client: AdminClient): Promise<void> {
@@ -163,6 +166,19 @@ export class AdminGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (!canProject(principal, Permission.UseInbox, { projectId: body.project_id })) return;
     this.presence.heartbeat(body.project_id, principal.userId);
     this.emitPresence(body.project_id);
+  }
+
+  /**
+   * Релей «оператор набирает…» в комнату диалога /widget (docs/13 §5).
+   * Аудит IR-059: событие объявлено в контракте, но не обрабатывалось.
+   * Доступ к диалогам оператора уже проверен при admin:subscribe_project;
+   * индикатор — ephemeral, персистентности и авторизации по conversation нет.
+   */
+  @SubscribeMessage("admin:typing")
+  async operatorTyping(client: AdminClient, body: { conversation_id: string }): Promise<void> {
+    await (client.data?.principalReady as Promise<void> | undefined);
+    if (!client.principal || !body?.conversation_id) return;
+    this.widgets.emitOperatorTyping(body.conversation_id);
   }
 
   // --- Эмиттеры (вызываются сервисами после персистентности) ---
