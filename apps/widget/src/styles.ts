@@ -80,6 +80,8 @@ export const WIDGET_STYLES = `
     background: none; border: none; cursor: pointer;
     color: inherit; font-size: 20px; line-height: 1;
   }
+  header button.handoff-btn { font-size: 16px; margin-right: 2px; }
+  header button:disabled { opacity: .45; cursor: default; }
 
   .messages {
     flex: 1; overflow-y: auto;

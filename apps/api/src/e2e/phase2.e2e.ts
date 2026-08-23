@@ -188,8 +188,11 @@ describe.skipIf(!DB_URL)("e2e: widget zone /widget/v1 (Фаза 2)", () => {
       reconnection: false,
     });
 
+    // 'connect' (а не transport-'open'): handleConnection проставляет visitor
+    // асинхронно после verify — ранняя эмиссия давала {ok:false} и флаку
+    // (аудит IR-059; так же сделано в phase3/phase4)
     const joined = await new Promise<{ ok: boolean }>((resolve, reject) => {
-      socket.io.on("open", () => {
+      socket.on("connect", () => {
         socket.emit("widget:join", { conversation_id: conversationId }, (r: { ok: boolean }) =>
           resolve(r),
         );

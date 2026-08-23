@@ -62,19 +62,36 @@ export class UniChatWidgetElement extends HTMLElement {
   private rateLimitTimer: ReturnType<typeof setTimeout> | null = null;
   /** «Посетитель печатает» авто-stop (замыкание buildDom → поле для destroy) */
   private typingStopTimer: ReturnType<typeof setTimeout> | null = null;
+  private handoffRequested = false;
 
   // DOM-ссылки
   private refs: {
     panel: HTMLElement;
-    dot: HTMLElement;
-    title: HTMLElement;
+    dot: HTMLElement;    title: HTMLElement;
     list: HTMLElement;
     typing: HTMLElement;
     statusline: HTMLElement;
     input: HTMLTextAreaElement;
     send: HTMLButtonElement;
     badge: HTMLElement;
+    handoffBtn: HTMLButtonElement;
   } | null = null;
+
+  /** Явная просьба «позвать человека» (docs/14 §2) */
+  private async handleHandoff(): Promise<void> {
+    const refs = this.refs;
+    if (!refs || !this.api || !this.token || this.handoffRequested) return;
+    const conversation = await this.ensureConversation().catch(() => null);
+    if (!conversation) return;
+    try {
+      await this.api.requestHandoff(this.token, conversation.id);
+      this.handoffRequested = true;
+      refs.handoffBtn.disabled = true;
+      this.setStatus("custom", new Error(this.strings.handoffRequested));
+    } catch {
+      this.setStatus("error", new Error(this.strings.genericError));
+    }
+  }
 
   connectedCallback(): void {
     if (this.shadow) return;
@@ -115,11 +132,18 @@ export class UniChatWidgetElement extends HTMLElement {
     dot.className = "dot";
     const title = document.createElement("span");
     title.className = "title";
+    // «Позвать оператора» — endpoint /handoff раньше был недостижим из UI
+    // (аудит IR-059); показывается только когда диалог ведёт AI
+    const handoffBtn = document.createElement("button");
+    handoffBtn.className = "handoff-btn";
+    handoffBtn.textContent = "👤";
+    handoffBtn.setAttribute("aria-label", this.strings.callOperator);
+    handoffBtn.addEventListener("click", () => void this.handleHandoff());
     const closeBtn = document.createElement("button");
     closeBtn.textContent = "×";
     closeBtn.setAttribute("aria-label", "Закрыть");
     closeBtn.addEventListener("click", () => this.close());
-    header.append(dot, title, closeBtn);
+    header.append(dot, title, handoffBtn, closeBtn);
 
     const list = document.createElement("div");
     list.className = "messages";
@@ -176,7 +200,7 @@ export class UniChatWidgetElement extends HTMLElement {
 
     s.append(style, launcher, panel);
 
-    this.refs = { panel, dot, title, list, typing, statusline, input, send, badge };
+    this.refs = { panel, dot, title, list, typing, statusline, input, send, badge, handoffBtn };
     this.applyStrings();
     this.applyConfigAttrs();
   }
@@ -340,6 +364,9 @@ export class UniChatWidgetElement extends HTMLElement {
   private handleState(state: string): void {
     if (state === "WAITING_OPERATOR" || state === "OPERATOR_ACTIVE") {
       this.setStatus("custom", new Error(this.strings.waitingOperator));
+      // Оператор уже подключается/подключён — кнопка не нужна
+      this.handoffRequested = true;
+      if (this.refs) this.refs.handoffBtn.disabled = true;
     } else if (state === "AI_ACTIVE" || state === "RESOLVED" || state === "CLOSED") {
       // Возврат под AI/закрытие: статус «оператор подключается…» снимаем
       // (раньше зависал навсегда — аудит IR-059)

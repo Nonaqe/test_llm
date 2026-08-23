@@ -96,9 +96,11 @@ export class ConversationEngineService {
     const system = buildSystemPrompt({
       name: assistant.name,
       locale: assistant.locale,
-      tone: assistant.tone,
-      companyDescription: assistant.company_description,
-      customInstructions: assistant.custom_instructions,
+      // Nullable-колонки БД → строки: prompt-builder делает .trim()
+      // (нашёл юнит-тест IR-059: ассистент без tone падал на null.trim())
+      tone: assistant.tone ?? "",
+      companyDescription: assistant.company_description ?? "",
+      customInstructions: assistant.custom_instructions ?? "",
       deniedTopics: assistant.safety_settings?.denied_topics ?? [],
       fallbackMessage: settings.fallbackMessage,
     });

@@ -46,6 +46,30 @@ export function configureApp(app: INestApplication, opts: { developmentOrigin?: 
     }
     next();
   });
+  // CSRF origin-check для мутирующих запросов /api/v1 (docs/15 §3; аудит IR-059:
+  // double-submit из docs не реализован — компенсирующее управление):
+  // сессия админки — ambient httpOnly-cookie, поэтому браузерный кросс-сайтовый
+  // запрос с cookie обязан иметь Origin своего сайта. Widget-зона не затронута —
+  // там Bearer-токен, CSRF неприменим.
+  app.use("/api/v1", (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
+    const mutating = !["GET", "HEAD", "OPTIONS"].includes(req.method);
+    const origin = req.headers.origin;
+    if (mutating && origin) {
+      let originHost = "";
+      try {
+        originHost = new URL(origin).host;
+      } catch {
+        originHost = "";
+      }
+      if (originHost !== (req.headers.host ?? "")) {
+        res.status(403).json({
+          error: { code: "CSRF_ORIGIN_MISMATCH", message: "Запрос отклонён: Origin не совпадает с сервером" },
+        });
+        return;
+      }
+    }
+    next();
+  });
   if (opts.developmentOrigin) {
     app.use("/api/v1", (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
       const origin = req.headers.origin;

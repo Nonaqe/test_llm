@@ -11,6 +11,9 @@ export interface WidgetStrings {
   newConversation: string;
   rateLimited: string;
   genericError: string;
+  /** Кнопка «позвать оператора» в шапке (docs/14 §2) */
+  callOperator: string;
+  handoffRequested: string;
 }
 
 const ru: WidgetStrings = {
@@ -23,6 +26,8 @@ const ru: WidgetStrings = {
   newConversation: "Новый диалог",
   rateLimited: "Слишком много сообщений — подождите немного",
   genericError: "Ошибка отправки. Попробуйте ещё раз",
+  callOperator: "Позвать оператора",
+  handoffRequested: "Оператор вызван",
 };
 
 const en: WidgetStrings = {
@@ -35,6 +40,8 @@ const en: WidgetStrings = {
   newConversation: "New conversation",
   rateLimited: "Too many messages — please wait a moment",
   genericError: "Failed to send. Please try again",
+  callOperator: "Call an operator",
+  handoffRequested: "Operator called",
 };
 
 export function stringsFor(locale: string): WidgetStrings {
