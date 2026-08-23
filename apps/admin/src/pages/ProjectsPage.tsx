@@ -37,9 +37,12 @@ export function ProjectsPage() {
     }
   };
 
+  // Стабильная ссылка на метод контекста (реаудит RA-A-1): зависимость от всего
+  // объекта projects пересоздавала колбэк каждый рендер → бесконечный цикл
+  // GET /projects, пока открыта страница.
   const reload = useCallback(() => {
     void projects.reload();
-  }, [projects]);
+  }, [projects.reload]);
 
   useEffect(() => {
     // Проекты могли измениться на другой странице — обновляем при входе.

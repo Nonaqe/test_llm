@@ -176,13 +176,17 @@ export function InboxPage() {
           api.getConversation(id),
           api.listMessages(id),
         ]);
+        // Stale-guard (реаудит RA-A-2): медленный ответ старого диалога не
+        // должен перезаписывать транскрипт уже выбранного другого диалога
+        if (selectedIdRef.current !== id) return;
         setConversation(convRes.conversation);
         setMessages(msgRes.messages);
       } catch (err) {
+        if (selectedIdRef.current !== id) return;
         handleMaybeExpired(err);
         setDetailError(describeApiError(err));
       } finally {
-        setDetailLoading(false);
+        if (selectedIdRef.current === id) setDetailLoading(false);
       }
     },
     [handleMaybeExpired],
@@ -199,14 +203,16 @@ export function InboxPage() {
   }, [selectedId, loadDetail]);
 
   const refreshSelectedMeta = useCallback(async () => {
-    if (selectedId === null) return;
+    const id = selectedIdRef.current;
+    if (id === null) return;
     try {
-      const res = await api.getConversation(selectedId);
+      const res = await api.getConversation(id);
+      if (selectedIdRef.current !== id) return; // stale-guard (RA-A-2)
       setConversation(res.conversation);
     } catch (err) {
       handleMaybeExpired(err);
     }
-  }, [selectedId, handleMaybeExpired]);
+  }, [handleMaybeExpired]);
 
   // Автопрокрутка транскрипта вниз.
   const transcriptRef = useRef<HTMLDivElement | null>(null);
