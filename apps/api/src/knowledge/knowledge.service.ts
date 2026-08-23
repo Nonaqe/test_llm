@@ -3,10 +3,12 @@
  * ready/failed. Фаза 3: обработка — последовательная очередь внутри api-процесса
  * (BullMQ + worker при REDIS_URL — Ф4/7, IR-024).
  */
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { ENV, type Env } from "../config/env";
+import { AppError } from "../common/http";
 import { EventsRepo } from "../db/repositories";
 import { AiProviderService } from "../ai/ai-provider.service";
 import { ChunksRepo, DocumentsRepo, FaqsRepo, type DocumentRow } from "./knowledge.repos";
@@ -19,6 +21,7 @@ const MAX_FILE_BYTES = 25 * 1024 * 1024;
 export class KnowledgeService {
   private queue: Promise<unknown> = Promise.resolve();
   private readonly uploadsDir: string;
+  private readonly logger = new Logger(KnowledgeService.name);
 
   constructor(
     private readonly documents: DocumentsRepo,
@@ -26,8 +29,13 @@ export class KnowledgeService {
     private readonly chunks: ChunksRepo,
     private readonly events: EventsRepo,
     private readonly providers: AiProviderService,
+    @Inject(ENV) private readonly env: Env,
   ) {
-    this.uploadsDir = process.env.UPLOADS_DIR ?? path.join(process.cwd(), "uploads");
+    // UPLOAD_DIR из env-схемы (аудит IR-059: читался несуществующий UPLOADS_DIR
+    // мимо валидации; install.sh теперь тоже пишет UPLOAD_DIR)
+    this.uploadsDir = this.env.UPLOAD_DIR.startsWith("/")
+      ? this.env.UPLOAD_DIR
+      : path.resolve(process.cwd(), this.env.UPLOAD_DIR);
   }
 
   async uploadFile(input: {
@@ -108,14 +116,19 @@ export class KnowledgeService {
   async reindex(projectId: string, documentId: string): Promise<void> {
     const doc = await this.mustOwn(projectId, documentId);
     await this.documents.setStatus(documentId, "pending");
-    this.enqueue(async () => {
+    void this.enqueue(async () => {
       const nextVersion = doc.version + 1;
       const { readFile } = await import("node:fs/promises");
       const buffer = await readFile(path.join(this.uploadsDir, documentId));
       const kind: SourceKind = doc.source_type === "text" ? "txt" : this.kindOf(doc);
       await this.indexDocument(documentId, projectId, nextVersion, buffer, kind);
       await this.documents.setVersion(documentId, nextVersion);
-    }).catch(() => undefined);
+    }).catch(async (err: unknown) => {
+      // Ошибка reindex не должна молча оставлять документ в pending навсегда
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn({ err, document_id: documentId }, "reindex failed");
+      await this.documents.setStatus(documentId, "failed", message.slice(0, 500)).catch(() => undefined);
+    });
   }
 
   async deleteDocument(projectId: string, documentId: string): Promise<void> {
@@ -146,7 +159,7 @@ export class KnowledgeService {
 
   async updateFaq(projectId: string, faqId: string, patch: { question?: string; answer?: string; enabled?: boolean }) {
     const faq = await this.faqs.findById(faqId);
-    if (!faq || faq.project_id !== projectId) throw new Error("NOT_FOUND");
+    if (!faq || faq.project_id !== projectId) throw AppError.notFound("FAQ");
     await this.faqs.update(faqId, patch);
     if (patch.question !== undefined || patch.answer !== undefined) {
       const updated = (await this.faqs.findById(faqId))!;
@@ -171,7 +184,7 @@ export class KnowledgeService {
 
   async deleteFaq(projectId: string, faqId: string) {
     const faq = await this.faqs.findById(faqId);
-    if (!faq || faq.project_id !== projectId) throw new Error("NOT_FOUND");
+    if (!faq || faq.project_id !== projectId) throw AppError.notFound("FAQ");
     await this.faqs.delete(faqId);
   }
 
@@ -236,7 +249,7 @@ export class KnowledgeService {
 
   private async mustOwn(projectId: string, documentId: string): Promise<DocumentRow> {
     const doc = await this.documents.findById(documentId);
-    if (!doc || doc.project_id !== projectId) throw new Error("NOT_FOUND");
+    if (!doc || doc.project_id !== projectId) throw AppError.notFound("Документ");
     return doc;
   }
 

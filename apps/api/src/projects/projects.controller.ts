@@ -90,7 +90,11 @@ export class ProjectsController {
   ) {
     const input = AddMemberSchema.parse(body);
     let targetUserId = input.user_id ?? null;
-    if (!targetUserId && input.email) {
+    if (targetUserId) {
+      // Чужой/несуществующий UUID иначе даёт FK 23503 → 500 (аудит IR-059)
+      const target = await this.users.findById(targetUserId);
+      if (!target) throw AppError.notFound("Пользователь");
+    } else if (input.email) {
       const target = await this.users.findByEmail(input.email);
       if (!target) throw AppError.notFound("Пользователь");
       targetUserId = target.id;

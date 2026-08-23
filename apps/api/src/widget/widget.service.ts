@@ -4,7 +4,7 @@
  * AI-ход — Conversation Engine; в WAITING_OPERATOR/OPERATOR_ACTIVE движок молчит
  * (docs/13 «Частые ошибки»), сообщение посетителя в RESOLVED/CLOSED переоткрывает.
  */
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { z } from "zod";
 import {
   ConversationState,
@@ -62,7 +62,18 @@ export const LeaveEmailSchema = z.object({
 @Injectable()
 export class WidgetService {
   /** Идемпотентность POST сообщений: key → сообщение (in-memory; Redis — Фаза 7). */
-  private readonly idempotency = new Map<string, { message: import("./widget.repos").WidgetMessageRow; expiresAt: number }>();
+  /**
+   * Idempotency-кэш повторов POST сообщений. Ключ скоупится по visitor+диалогу:
+   * голый заголовок позволял чужому посетителю получить ЧУЖОЕ сообщение из кэша
+   * (межарендовая утечка, аудит IR-059). Записи с истёкшим TTL вытесняются.
+   */
+  private readonly idempotency = new Map<
+    string,
+    { message: import("./widget.repos").WidgetMessageRow; expiresAt: number }
+  >();
+  private static IDEMPOTENCY_TTL_MS = 10 * 60 * 1000;
+  private static IDEMPOTENCY_MAX_ENTRIES = 5000;
+  private readonly logger = new Logger(WidgetService.name);
 
   constructor(
     private readonly sites: SitesRepo,
@@ -186,8 +197,11 @@ export class WidgetService {
 
     const conversation = await this.getOwnedConversation(conversationId, visitor);
 
-    if (idempotencyKey) {
-      const cached = this.idempotency.get(idempotencyKey);
+    const idemCacheKey = idempotencyKey
+      ? `${visitor.vid}:${conversation.id}:${idempotencyKey}`
+      : null;
+    if (idemCacheKey) {
+      const cached = this.idempotency.get(idemCacheKey);
       if (cached && cached.expiresAt > Date.now()) return toMessageDto(cached.message);
     }
 
@@ -196,10 +210,11 @@ export class WidgetService {
       MessageRole.Visitor,
       text,
     );
-    if (idempotencyKey) {
-      this.idempotency.set(idempotencyKey, {
+    if (idemCacheKey) {
+      this.pruneIdempotency();
+      this.idempotency.set(idemCacheKey, {
         message,
-        expiresAt: Date.now() + 10 * 60 * 1000,
+        expiresAt: Date.now() + WidgetService.IDEMPOTENCY_TTL_MS,
       });
     }
 
@@ -221,9 +236,25 @@ export class WidgetService {
 
     // AI-ход только пока диалог ведёт AI (docs/13: в OPERATOR_ACTIVE движок молчит)
     if (message.state_after === ConversationState.AiActive) {
-      void this.engine.onVisitorMessage(conversation, text);
+      void this.engine.onVisitorMessage(conversation, text).catch((err: unknown) => {
+        // fire-and-forget не должен ронять процесс молча (аудит IR-059)
+        this.logger.error({ err, conversation_id: conversation.id }, "onVisitorMessage failed");
+      });
     }
     return toMessageDto(message);
+  }
+
+  /** Вытеснение просроченных записей idempotency-кэша (Map рос безбрежно) */
+  private pruneIdempotency(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.idempotency) {
+      if (entry.expiresAt <= now) this.idempotency.delete(key);
+    }
+    while (this.idempotency.size >= WidgetService.IDEMPOTENCY_MAX_ENTRIES) {
+      const oldest = this.idempotency.keys().next().value;
+      if (oldest === undefined) break;
+      this.idempotency.delete(oldest);
+    }
   }
 
   /** Явная просьба посетителя «позвать человека» (docs/14 §2). */

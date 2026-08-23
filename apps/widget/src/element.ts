@@ -441,6 +441,11 @@ export class UniChatWidgetElement extends HTMLElement {
   private applyConfigAttrs(): void {
     if (!this.config) return;
     if (this.config.theme.position === "left") this.setAttribute("position", "left");
+    // Акцент из конструктора сайтов (SitesPage → API config.theme.accent):
+    // раньше сохранялся, но никогда не применялся (аудит IR-059)
+    if (this.config.theme.accent) {
+      this.style.setProperty("--uni-chat-accent", this.config.theme.accent);
+    }
   }
 
   setLocale(locale: string): void {

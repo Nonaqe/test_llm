@@ -18,12 +18,17 @@ describe("isPrivateIp (docs/15 §3)", () => {
     "fd12::1",
     "fe80::1",
     "fea9::1",
-    "::ffff:10.0.0.1", // v4-mapped
+    "::ffff:10.0.0.1", // v4-mapped dotted
+    "::ffff:7f00:1", // v4-mapped HEX-форма (IR-058: строковый префикс её пропускал)
+    "64:ff9b::a00:1", // NAT64 со встроенным 10.0.0.1
+    "2002:a00:1::", // 6to4 со встроенным 10.0.0.1
+    "::a00:1", // устаревший IPv4-compatible
+    "ff02::1", // multicast
   ])("приватный адрес %s блокируется", (ip) => {
     expect(isPrivateIp(ip)).toBe(true);
   });
 
-  it.each(["8.8.8.8", "93.184.216.34", "172.32.0.1", "2606:4700::1111"])(
+  it.each(["8.8.8.8", "93.184.216.34", "172.32.0.1", "2606:4700::1111", "::ffff:8.8.8.8"])(
     "публичный адрес %s разрешается",
     (ip) => {
       expect(isPrivateIp(ip)).toBe(false);
@@ -56,6 +61,13 @@ describe("assertPublicHttpUrl", () => {
   it("кривой URL отклоняется", async () => {
     await expect(assertPublicHttpUrl("http://", lookupPublic)).rejects.toThrow("INVALID_URL");
   });
+
+  it.each(["http://example.com:8080/", "https://example.com:22/", "http://example.com:6379/"])(
+    "нестандартный порт %s отклоняется (анти-скан)",
+    async (url) => {
+      await expect(assertPublicHttpUrl(url, lookupPublic)).rejects.toThrow("PORT_NOT_ALLOWED");
+    },
+  );
 
   it("резолв в приватный адрес отклоняется", async () => {
     await expect(assertPublicHttpUrl("http://internal.local", lookupPrivate)).rejects.toThrow(

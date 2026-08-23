@@ -55,6 +55,8 @@ export class KnowledgeController {
       });
       return { document: doc };
     } catch (err) {
+      // AppError (NOT_FOUND и пр.) уходит как есть — не маскируем в 422
+      if (err instanceof AppError) throw err;
       const message = err instanceof Error ? err.message : String(err);
       const code = message.split(":")[0];
       throw new AppError(code === "UNSUPPORTED_TYPE" ? "UNSUPPORTED_TYPE" : "UPLOAD_FAILED", message, 422);

@@ -68,7 +68,15 @@ function mount(key: string, server?: string): UniChatWidgetElement {
   const el = document.createElement(TAG) as UniChatWidgetElement;
   el.setAttribute("key", key);
   if (server) el.setAttribute("server", server);
-  document.body.appendChild(el);
+  // Скрипт в <head> без defer: body ещё null → маунт по DOMContentLoaded
+  // (TypeError "body is null" убивал весь виджет, аудит IR-059)
+  if (document.body) {
+    document.body.appendChild(el);
+  } else {
+    document.addEventListener("DOMContentLoaded", () => document.body.appendChild(el), {
+      once: true,
+    });
+  }
   return el;
 }
 

@@ -107,6 +107,8 @@ export interface AdminClientToServerEvents {
     ack?: (result: { ok: boolean; error?: string }) => void,
   ) => void;
   "admin:unsubscribe_project": (payload: { project_id: string }) => void;
+  /** Пульс оператора (TTL 60 c, admin.gateway): поддерживает «операторы онлайн» */
+  "presence:heartbeat": (payload: { project_id: string }) => void;
 }
 
 export interface AdminServerToClientEvents {

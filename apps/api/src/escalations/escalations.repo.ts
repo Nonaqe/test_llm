@@ -133,8 +133,11 @@ export class EscalationsRepo {
          returning id, assistant_id, priority, type, params, action, enabled`,
         params,
       );
+      // Правило могли удалить конкурентно между assert и UPDATE (аудит IR-059)
+      if (rows.length === 0) throw AppError.notFound("Правило");
       return rows[0] as EscalationRuleRow;
     } catch (err) {
+      if (err instanceof AppError) throw err;
       throw mapRuleViolation(err);
     }
   }

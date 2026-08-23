@@ -318,8 +318,17 @@ export function InboxPage() {
 
     socket.on("connect", () => {
       const pid = projectIdRef.current;
-      if (pid !== null) socket.emit("admin:subscribe_project", { project_id: pid });
+      if (pid !== null) {
+        socket.emit("admin:subscribe_project", { project_id: pid });
+        // presence:heartbeat (TTL 60 c): без него «операторы онлайн» обнулялись
+        socket.emit("presence:heartbeat", { project_id: pid });
+      }
     });
+    // Пульс каждые 30 c, пока оператор на странице инбокса
+    const heartbeat = setInterval(() => {
+      const pid = projectIdRef.current;
+      if (pid !== null) socket.emit("presence:heartbeat", { project_id: pid });
+    }, 30_000);
     socket.on("conversation:created", (payload) => {
       if (payload.conversation.project_id !== projectIdRef.current) return;
       pushToast(t("toast.newConversation"));
@@ -353,6 +362,7 @@ export function InboxPage() {
     });
 
     return () => {
+      clearInterval(heartbeat);
       socket.disconnect();
     };
   }, [loadConversations, loadPendingHandoffs, loadDetail, pushToast, t]);

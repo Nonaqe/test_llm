@@ -177,29 +177,7 @@ export class ChunksRepo {
     return inserted;
   }
 
-  async replaceForFaq(input: {
-    projectId: string;
-    faqId: string;
-    question: string;
-    answer: string;
-    embeddingModel: string;
-    embed: (texts: string[]) => Promise<number[][]>;
-  }): Promise<number> {
-    const content = `Вопрос: ${input.question}\nОтвет: ${input.answer}`;
-    // FAQ индексируются «версией 1»: при изменении старые чанки удаляются сразу
-    await this.deleteForFaq(input.faqId);
-    return this.insertChunks(
-      {
-        projectId: input.projectId,
-        documentId: null,
-        faqId: input.faqId,
-        version: 1,
-        embeddingModel: input.embeddingModel,
-        embed: input.embed,
-      },
-      [{ content, tokenCount: Math.ceil(content.length / 4), metadata: { kind: "faq" } }],
-    );
-  }
+  // replaceForFaq перенесён в конец файла рядом с deleteForFaq
 
   private async insertChunks(
     input: {
@@ -253,5 +231,40 @@ export class ChunksRepo {
   async deleteForFaq(faqId: string): Promise<void> {
     if (!this.db) throw new Error("DATABASE_URL не настроен");
     await this.db.query("delete from chunks where source_faq_id = $1", [faqId]);
+  }
+
+  async replaceForFaq(input: {
+    projectId: string;
+    faqId: string;
+    question: string;
+    answer: string;
+    embeddingModel: string;
+    embed: (texts: string[]) => Promise<number[][]>;
+  }): Promise<number> {
+    const content = `Вопрос: ${input.question}\nОтвет: ${input.answer}`;
+    // Симметрично документам (аудит IR-059): новая версия вставляется ДО
+    // удаления старой — сбой эмбеддинга больше не оставляет FAQ без чанков.
+    if (!this.db) throw new Error("DATABASE_URL не настроен");
+    const { rows } = await this.db.query<{ max_version: number | null }>(
+      "select max(source_version)::int as max_version from chunks where source_faq_id = $1",
+      [input.faqId],
+    );
+    const nextVersion = (rows[0]?.max_version ?? 0) + 1;
+    const inserted = await this.insertChunks(
+      {
+        projectId: input.projectId,
+        documentId: null,
+        faqId: input.faqId,
+        version: nextVersion,
+        embeddingModel: input.embeddingModel,
+        embed: input.embed,
+      },
+      [{ content, tokenCount: Math.ceil(content.length / 4), metadata: { kind: "faq" } }],
+    );
+    await this.db.query(
+      "delete from chunks where source_faq_id = $1 and source_version < $2",
+      [input.faqId, nextVersion],
+    );
+    return inserted;
   }
 }

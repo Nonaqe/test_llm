@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Post, Req, UseGuards } from "@nestjs/common";
 import { z } from "zod";
 import { canInstallation, Permission, type Principal } from "@uni-chat/core";
-import { AppError } from "../common/http";
+import { AppError, isUniqueViolation } from "../common/http";
 import { Auth, AuthedRequest, CurrentUser, JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { AuthService } from "../auth/auth.service";
 import { EventsRepo, UsersRepo } from "../db/repositories";
@@ -48,13 +48,20 @@ export class UsersController {
       throw AppError.forbidden("Только owner может создавать owner");
     }
     const passwordHash = await this.auth.hashPassword(input.password);
-    const created = await this.users.insert({
-      email: input.email,
-      passwordHash,
-      name: input.name,
-      // оператор проекта = без роли установки (docs/06 §3)
-      installationRole: input.installation_role ?? null,
-    });
+    let created;
+    try {
+      created = await this.users.insert({
+        email: input.email,
+        passwordHash,
+        name: input.name,
+        // оператор проекта = без роли установки (docs/06 §3)
+        installationRole: input.installation_role ?? null,
+      });
+    } catch (err) {
+      // Дубликат email: PG 23505 → 409 CONFLICT, а не 500 (аудит IR-059)
+      if (isUniqueViolation(err)) throw AppError.conflict("EMAIL_TAKEN", "Пользователь с таким email уже существует");
+      throw err;
+    }
     await this.events.append({
       actorType: "user",
       actorId: user.userId,

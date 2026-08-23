@@ -1,8 +1,9 @@
 import { Body, Controller, HttpCode, Inject, Post, Req, Res } from "@nestjs/common";
+import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import type { Response } from "express";
 import { ENV, type Env } from "../config/env";
-import { AppError } from "../common/http";
+import { AppError, isUniqueViolation } from "../common/http";
 import { AuthService } from "./auth.service";
 import { AuthedRequest, REFRESH_COOKIE, SESSION_COOKIE } from "./jwt-auth.guard";
 import { ACCESS_TTL_S, REFRESH_TTL_S } from "./tokens";
@@ -14,6 +15,13 @@ const SetupSchema = z.object({
   password: z.string().min(8).max(200),
   name: z.string().max(200).default(""),
 });
+
+/** Сравнение секретов за постоянное время (аудит IR-059: !== позволял timing-утечку) */
+function safeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a, "utf8");
+  const bufB = Buffer.from(b, "utf8");
+  return bufA.length === bufB.length && timingSafeEqual(bufA, bufB);
+}
 
 /**
  * POST /api/v1/setup — создание первого владельца по одноразовому SETUP-токену
@@ -36,17 +44,25 @@ export class SetupController {
     if ((await this.users.count()) > 0) {
       throw AppError.conflict("SETUP_ALREADY_DONE", "Первоначальная настройка уже выполнена");
     }
-    if (!this.env.SETUP_TOKEN || input.token !== this.env.SETUP_TOKEN) {
+    if (!this.env.SETUP_TOKEN || !safeEqual(input.token, this.env.SETUP_TOKEN)) {
       throw new AppError("SETUP_TOKEN_INVALID", "Неверный токен первоначальной настройки", 403);
     }
 
     const passwordHash = await this.auth.hashPassword(input.password);
-    const user = await this.users.insert({
-      email: input.email,
-      passwordHash,
-      name: input.name,
-      installationRole: "owner",
-    });
+    let user;
+    try {
+      user = await this.users.insert({
+        email: input.email,
+        passwordHash,
+        name: input.name,
+        installationRole: "owner",
+      });
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw AppError.conflict("EMAIL_TAKEN", "Пользователь с таким email уже существует");
+      }
+      throw err;
+    }
     await this.events.append({
       actorType: "system",
       action: "setup.completed",

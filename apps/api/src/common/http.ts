@@ -69,6 +69,11 @@ export class AppError extends HttpException {
   }
 }
 
+/** PG unique_violation (23505) — дубликат email и пр.; маппится в 409, не 500 */
+export function isUniqueViolation(err: unknown): boolean {
+  return typeof err === "object" && err !== null && "code" in err && (err as { code?: string }).code === "23505";
+}
+
 const STATUS_TO_CODE: Record<number, string> = {
   400: "BAD_REQUEST",
   401: "UNAUTHORIZED",
