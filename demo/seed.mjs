@@ -71,32 +71,54 @@ if (!authed) {
   console.log("✓ вход выполнен");
 }
 
-// 2. Проект
-const { project } = await call("POST", "/api/v1/projects", { name: "UniChat Platform" });
-console.log(`✓ проект ${project.id}`);
+// 2. Проект — идемпотентно: ищем существующий по имени (аудит IR-059:
+// повторный прогон создавал каждый раз новый проект и дублировал документы)
+const PROJECT_NAME = "UniChat Platform";
+let project;
+const existing = await call("GET", "/api/v1/projects");
+project = existing.projects.find((p) => p.name === PROJECT_NAME);
+if (project) {
+  console.log(`• проект уже существует ${project.id}`);
+} else {
+  ({ project } = await call("POST", "/api/v1/projects", { name: PROJECT_NAME }));
+  console.log(`✓ проект ${project.id}`);
+}
 
-// 3. Сайт с публичным ключом виджета
-const { site } = await call("POST", `/api/v1/projects/${project.id}/sites`, {
-  name: "Local Demo Site",
-  domain: "localhost",
-  allowed_origins: ["http://localhost:8088", "http://127.0.0.1:8088"],
-});
-console.log(`✓ сайт ${site.id}, widget_public_key=${site.widget_public_key}`);
+// 3. Сайт с публичным ключом виджета — тоже идемпотентно
+let site;
+const { sites } = await call("GET", `/api/v1/projects/${project.id}/sites`);
+site = sites.find((s) => s.domain === "localhost");
+if (site) {
+  console.log(`• сайт уже существует ${site.id}, widget_public_key=${site.widget_public_key}`);
+} else {
+  ({ site } = await call("POST", `/api/v1/projects/${project.id}/sites`, {
+    name: "Local Demo Site",
+    domain: "localhost",
+    allowed_origins: ["http://localhost:8088", "http://127.0.0.1:8088"],
+  }));
+  console.log(`✓ сайт ${site.id}, widget_public_key=${site.widget_public_key}`);
+}
+console.log("  → demo/site/index.html использует этот ключ");
 
-// 4. База знаний — все docs/*.md проекта
+// 4. База знаний — все docs/*.md проекта. Сервер НЕ поддерживает
+// Idempotency-Key на knowledge/texts (аудит IR-059), поэтому идемпотентность
+// клиентская: пропускаем документы с уже существующим title.
 const docsDir = fileURLToPath(new URL("../docs/", import.meta.url));
 const files = (await readdir(docsDir)).filter((f) => f.endsWith(".md"));
+const { documents: existingDocs } = await call("GET", `/api/v1/projects/${project.id}/knowledge/documents`);
+const knownTitles = new Set(existingDocs.map((d) => d.title));
 let ready = 0;
 for (const f of files) {
+  if (knownTitles.has(f)) continue;
   const text = await readFile(docsDir + f, "utf8");
   if (text.trim().length < 200) continue; // пропускаем служебные заглушки
   await call("POST", `/api/v1/projects/${project.id}/knowledge/texts`, {
     title: f,
     text,
-  }, { idem: `demo-doc-${f}` });
+  });
   ready++;
 }
-console.log(`✓ документов отправлено: ${ready}/${files.length}`);
+console.log(`✓ документов отправлено: ${ready} (уже в базе: ${existingDocs.length})`);
 
 // Ждём готовности индексации (эмбеддинги fake — быстро)
 const deadline = Date.now() + 120_000;

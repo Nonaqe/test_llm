@@ -306,10 +306,11 @@ describe.skipIf(!DB_URL)("e2e: сайты, аналитика, песочниц�
     const a = res.body.data.analytics;
 
     expect(a.days).toHaveLength(14);
-    // ряд упорядочен по возрастанию и заканчивается сегодняшним днём
-    const today = new Date();
-    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-    expect(a.days.at(-1).date).toBe(todayKey);
+    // ряд упорядочен по возрастанию и заканчивается сегодняшним днём.
+    // «Сегодня» берём SQL-ом (аудит IR-059: дата из Node-раннера флейовала,
+    // если TZ раннера не совпадает с TZ контейнера БД на границе суток)
+    const todayRows = await pool.query<{ d: string }>("select to_char(now(), 'YYYY-MM-DD') as d");
+    expect(a.days.at(-1).date).toBe(todayRows.rows[0]!.d);
     for (const day of a.days) {
       expect(day.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(day.conversations).toBeGreaterThanOrEqual(0);

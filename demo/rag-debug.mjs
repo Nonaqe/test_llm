@@ -1,7 +1,6 @@
 /** Трассировка retrieval: оба плеча вручную по тем же SQL, что RetrievalService. */
 import pg from "pg";
 
-const PROJECT = "ee277bfc-3469-4327-a481-7b9249baad0d";
 const DIM = 1536;
 
 // Точная копия fake-эмбеддинга из packages/core
@@ -29,6 +28,17 @@ const vec = fakeEmbedding(q);
 
 const c = new pg.Client({ connectionString: "postgres://postgres:postgres@127.0.0.1:54329/postgres" });
 await c.connect();
+
+// Проект резолвится по имени (последний созданный seed'ом) — захардкоженный
+// uuid умирал после любого пересида (аудит IR-059)
+const projectName = process.argv[3] ?? "Nova Shop";
+const proj = await c.query("select id from projects where name = $1 order by created_at desc limit 1", [projectName]);
+if (proj.rows.length === 0) {
+  console.error(`Проект «${projectName}» не найден. Запустите demo/seed.mjs.`);
+  process.exit(1);
+}
+const PROJECT = proj.rows[0].id;
+console.log(`project: ${PROJECT} (${projectName})`);
 
 const vectorLeg = await c.query(
   `select id, left(content, 60) as content, (1 - (embedding <=> $2::vector))::float8 as cosine

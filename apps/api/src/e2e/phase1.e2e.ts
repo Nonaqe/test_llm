@@ -153,28 +153,29 @@ describe.skipIf(!DB_URL)("e2e: auth + projects + изоляция (Фаза 1)",
   });
 
   it("brute-force: 6-я попытка логина → 429 LOGIN_LOCKED", async () => {
+    // Отдельный пользователь (аудит IR-059): лочили owner@example.com —
+    // следующий тест «спасался» fallback-веткой refresh, маскируя поломку
+    const victim = "bruteforce-victim@example.com";
     for (let i = 0; i < 5; i++) {
       const res = await request(app.getHttpServer())
         .post("/api/v1/auth/login")
-        .send({ email: "owner@example.com", password: "wrong-password" });
+        .send({ email: victim, password: "wrong-password" });
       expect(res.status).toBe(401);
     }
     const sixth = await request(app.getHttpServer())
       .post("/api/v1/auth/login")
-      .send({ email: "owner@example.com", password: "wrong-password" });
+      .send({ email: victim, password: "wrong-password" });
     expect(sixth.status).toBe(429);
     expect(sixth.body.error.code).toBe("LOGIN_LOCKED");
     expect(sixth.body.error.details.retry_after_s).toBeGreaterThan(0);
   });
 
   it("настройки: секрет шифруется в БД и маскируется в API", async () => {
-    // отдаём throttling-окно: другой email
+    // владелец больше не залочен brute-force тестом (другой email)
     const fresh = await request(app.getHttpServer())
       .post("/api/v1/auth/login")
       .send({ email: "owner@example.com", password: "password123" });
-    // владелец мог попасть под lockout после brute-force теста — refresh-ом восстанавливаем сессию
-    const sess = fresh.status === 200 ? fresh : await request(app.getHttpServer()).post("/api/v1/auth/refresh").set("Cookie", cookies.join("; "));
-    captureCookies(sess);
+    captureCookies(fresh);
 
     const put = await api.put("/api/v1/settings/ai_provider.api_key").send({
       value: "sk-live-super-secret",

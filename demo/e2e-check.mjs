@@ -44,13 +44,19 @@ console.log("✓ conversation:", conversationId);
 const question = process.argv[2] ?? "Какие фазы реализации есть в проекте и что уже сделано?";
 const sent = await call("POST", `/widget/v1/conversations/${conversationId}/messages`, { text: question });
 if (sent.status !== 201) throw new Error(`send failed: ${sent.status}`);
-console.log("✓ вопрос отправлен:", question);
+// ждём ответ СТРОГО после нашего visitor-сообщения: after_seq=1 находил
+// старые ответы прошлых прогонов (аудит IR-059)
+const sentSeq = sent.json.data.message.seq;
+console.log("✓ вопрос отправлен:", question, `(seq=${sentSeq})`);
 
 // 4. ждём ответ ассистента
 const deadline = Date.now() + 90_000;
 let answer = null;
 for (;;) {
-  const msgs = await call("GET", `/widget/v1/conversations/${conversationId}/messages?after_seq=1`);
+  const msgs = await call(
+    "GET",
+    `/widget/v1/conversations/${conversationId}/messages?after_seq=${sentSeq}`,
+  );
   const found = (msgs.json.data?.messages ?? []).find(
     (m) => m.role === "assistant" && (m.citations?.length || m.content),
   );
