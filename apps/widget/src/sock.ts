@@ -15,6 +15,8 @@ export interface SocketHandlers {
   onOperatorTyping: () => void;
   onConnect: () => void;
   onDisconnect: () => void;
+  /** Ошибка подключения (истёк visitor-JWT, сеть) — элемент решает: re-init */
+  onConnectError?: (err: Error) => void;
 }
 
 export class WidgetSocket {
@@ -32,17 +34,32 @@ export class WidgetSocket {
     this.socket.on("operator:typing", () => handlers.onOperatorTyping());
     this.socket.on("connect", handlers.onConnect);
     this.socket.on("disconnect", handlers.onDisconnect);
+    if (handlers.onConnectError) {
+      this.socket.on("connect_error", (err: Error) => handlers.onConnectError!(err));
+    }
   }
 
   get connected(): boolean {
     return this.socket.connected;
   }
 
-  join(conversationId: string): Promise<{ ok: boolean }> {
+  /**
+   * Join с таймаутом (аудит IR-059): потерянный ack при обрыве оставлял
+   * promise висеть навсегда — кэтч-ап после реконнекта не выполнялся.
+   */
+  join(conversationId: string, timeoutMs = 3000): Promise<{ ok: boolean }> {
     return new Promise((resolve) => {
-      this.socket.emit("widget:join", { conversation_id: conversationId }, (r: { ok: boolean }) =>
-        resolve(r ?? { ok: false }),
-      );
+      let settled = false;
+      const done = (r: { ok: boolean }): void => {
+        if (settled) return;
+        settled = true;
+        resolve(r ?? { ok: false });
+      };
+      const timer = setTimeout(() => done({ ok: false }), timeoutMs);
+      this.socket.emit("widget:join", { conversation_id: conversationId }, (r: { ok: boolean }) => {
+        clearTimeout(timer);
+        done(r);
+      });
     });
   }
 

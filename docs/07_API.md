@@ -44,7 +44,7 @@ related:
 | Метод | Путь | Назначение |
 |---|---|---|
 | GET | `/widget/v1/health` | Статус сервера (WP-плагин, мониторинг) |
-| POST | `/widget/v1/init` | Инициализация: `{key, origin, anon_id, attributes?}` → visitor token + конфиг виджета + открытый диалог (если есть) |
+| POST | `/widget/v1/init` | Инициализация: тело `{key, anon_id, attributes?}`; origin берётся ТОЛЬКО из заголовка `Origin` (IR-017, аудит IR-059) → visitor token + конфиг виджета + открытый диалог (если есть) |
 | POST | `/widget/v1/conversations` | Создать диалог посетителя |
 | GET | `/widget/v1/conversations/:id` | Состояние диалога (синхронизация клиента) |
 | GET | `/widget/v1/conversations/:id/messages?after_seq=N` | Кэтч-ап после reconnect |
@@ -57,8 +57,9 @@ related:
 ```http
 POST /widget/v1/init
 Content-Type: application/json
+Origin: https://site-a.com
 
-{ "key": "pk_live_9f3a...", "origin": "https://site-a.com" }
+{ "key": "pk_live_9f3a...", "anon_id": "anon-7f3c9b21a4d8" }
 ```
 
 ```json
@@ -224,15 +225,22 @@ POST /api/v1/conversations/0192a1b2-.../return-to-ai
 | `VALIDATION_FAILED` | 422 | обе |
 | `LOGIN_LOCKED` | 429 | auth: brute-force защита |
 
-## 6. Rate limits (Redis token-bucket)
+## 6. Rate limits
 
-| Цель | Лимит |
-|---|---|
-| `POST /widget/v1/init` | 30/мин на IP |
-| `POST .../messages` (widget) | 10/мин на visitor, 30/мин на IP |
-| `POST .../handoff` | 3/мин на visitor |
-| `POST /api/v1/auth/login` | 5/15 мин на IP+аккаунт (прогрессивная блокировка) |
-| Upload документов | 10/час на проект |
+Хранилище: in-memory token-bucket (`auth/stores.ts`); Redis-реализация включается
+при REDIS_URL — backlog D-10 (аудит IR-059: «Redis token-bucket» в таблице был
+обещанием, не фактом).
+
+| Цель | Лимит | Статус |
+|---|---|---|
+| `POST /widget/v1/init` | 30/мин на IP | ✅ реализован |
+| `POST .../messages` (widget) | 10/мин на visitor | ✅ реализован |
+| `POST /api/v1/conversations` | 5/час на visitor | ✅ реализован |
+| `POST .../leave-email` | 5/мин на visitor | ✅ реализован |
+| `POST /api/v1/auth/login` | 5/15 мин на IP+аккаунт (прогрессивная блокировка) | ✅ реализован |
+| `POST .../handoff` | 3/мин на visitor | ⛔ не реализован — план Ф9 |
+| `POST .../messages` per-IP | 30/мин на IP | ⛔ не реализован — план Ф9 |
+| Upload документов на проект | 10/час | ⛔ не реализован — план Ф9 |
 
 Превышение → `429 RATE_LIMITED` + `retry_after_s`.
 

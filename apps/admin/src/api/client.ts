@@ -74,6 +74,9 @@ export type ConversationAction = "accept" | "return-to-ai" | "close" | "reopen";
 
 export class AdminApi {
   private readonly baseUrl: string;
+  /** Единовременный refresh: параллельные 401 ждут один общий запрос (docs/15 §1) */
+  private refreshInFlight: Promise<boolean> | null = null;
+  private static readonly NO_RETRY_PATHS = ["/auth/login", "/auth/refresh", "/auth/logout", "/setup"];
 
   constructor(baseUrl = "/api/v1") {
     this.baseUrl = baseUrl;
@@ -90,6 +93,14 @@ export class AdminApi {
       });
     } catch {
       throw new ApiError(0, "NETWORK", "Сеть недоступна");
+    }
+
+    // Access-cookie живёт 15 мин; при истечении — refresh → повтор запроса.
+    // Разлогин только если refresh тоже не удался (аудит IR-059: жёсткий
+    // логаут каждые 15 минут при живой 7-дневной refresh-cookie).
+    if (res.status === 401 && !AdminApi.NO_RETRY_PATHS.some((p) => path.startsWith(p))) {
+      const refreshed = await this.refreshOnce();
+      if (refreshed) return this.request<T>(method, path, body);
     }
 
     const raw: unknown = await res.json().catch(() => null);
@@ -109,6 +120,27 @@ export class AdminApi {
       return raw.data as T;
     }
     throw new ApiError(res.status, "BAD_ENVELOPE", "Некорректный формат ответа сервера");
+  }
+
+  /** POST /auth/refresh; true — сессия продлена. Параллельные вызовы делят один запрос. */
+  private async refreshOnce(): Promise<boolean> {
+    this.refreshInFlight ??= (async (): Promise<boolean> => {
+      try {
+        const res = await fetch(`${this.baseUrl}/auth/refresh`, {
+          method: "POST",
+          credentials: "include",
+        });
+        return res.ok;
+      } catch {
+        return false;
+      } finally {
+        // сброс после микротаска — последующие 401 начинают новый refresh
+        setTimeout(() => {
+          this.refreshInFlight = null;
+        }, 0);
+      }
+    })();
+    return this.refreshInFlight;
   }
 
   // --- auth ---

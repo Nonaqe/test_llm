@@ -39,27 +39,36 @@ related:
 
 | Переменная | Обязательна | Назначение | Дефолт |
 |---|---|---|---|
-| `APP_SECRET` | да | Ключ шифрования секретов в БД (AES-256-GCM); генерирует installer | — |
-| `APP_URL` | да | Публичный URL чат-сервера (ссылки, CSP) | — |
-| `DATABASE_URL` | да | Подключение PostgreSQL | — |
-| `REDIS_URL` | да | Подключение Redis | — |
-| `NODE_ENV` | — | production/development | production |
+| `APP_SECRET` | да* | Ключ шифрования секретов в БД (AES-256-GCM); генерирует installer. *Без него api стартует, но шифрование настроек недоступно | — |
+| `DATABASE_URL` | нет | Подключение PostgreSQL; без неё — деградация health (Фаза 0) | — |
+| `REDIS_URL` | нет | Redis: fanout Socket.IO при >1 инстансе; без неё in-memory adapter (MVP-профиль) | — |
+| `NODE_ENV` | — | production/development | development |
 | `PORT` | — | Порт api внутри контейнера | 3000 |
-| `TRUST_PROXY` | — | За Caddy (реальные IP для rate limit) | 1 |
+| `TRUST_PROXY` | — | Число доверенных прокси-хопов (req.ip из X-Forwarded-For). За Caddy = 1; не задан — прямое подключение | — |
 | `LOG_LEVEL` | — | Уровень логов (DOC-019) | info |
 | `SETUP_TOKEN` | авто | Одноразовый токен визарда (печатает installer) | — |
-| `BACKUP_S3_ENDPOINT/_KEY/_SECRET/_BUCKET` | — | Удалённый бэкап (опция) | — |
+| `BACKUP_DIR` | — | Куда worker складывает дампы и маркер last-backup.json | ./backups |
+| `UPLOAD_DIR` | — | Каталог загруженных файлов знаний (архивируется в бэкап); volume /app/uploads | ./uploads |
+| `BACKUP_AT` | — | Локальное время ночного бэкапа HH:MM | 03:00 |
+| `ALERT_EMAIL` | — | Email алерта при ошибке бэкапа (не задан — SMTP-алерты выключены) | — |
+| `APP_VERSION` | — | Версия сборки (health, диагностика) | 0.1.0 |
+| `BACKUP_S3_ENDPOINT/_KEY/_SECRET/_BUCKET` | — | Удалённый бэкап (опция; backlog D-16) | — |
+
+> Удалено из схемы по итогам аудита IR-059: `APP_URL` и `TRUST_PROXY`-«обязательна» не
+> соответствовали коду; фактическая схема — `apps/api/src/config/env.ts`.
 
 Пример `.env`:
 
 ```text
 APP_SECRET=9f2c8a...            # сгенерирован installer; хранить у заказчика
-APP_URL=https://chat.example.com
 DATABASE_URL=postgres://unichat:S3cret@postgres:5432/unichat
 REDIS_URL=redis://redis:6379/0
 NODE_ENV=production
 PORT=3000
-TRUST_PROXY=1
+TRUST_PROXY=1                   # api за Caddy: req.ip из X-Forwarded-For
+UPLOAD_DIR=/app/uploads
+BACKUP_DIR=/app/backups
+BACKUP_AT=03:00
 LOG_LEVEL=info
 # опционально — удалённые бэкапы:
 # BACKUP_S3_ENDPOINT=https://s3.example.com
@@ -76,7 +85,10 @@ LOG_LEVEL=info
 | SMTP | host, port, user, пароль (шифруется), from — для email-уведомлений операторам |
 | Бэкапы | расписание, retention (дни/недели), S3-опция |
 | Телеметрия | opt-in отправка ошибок (по умолчанию выключена) |
-| Лимиты | размер файла KB, лимиты документов на проект |
+
+> Лимит документов на проект и размер файла в настройках (аудит IR-059) не
+> реализованы: файл ≤ 25 МБ зашит в код (`knowledge.controller`); лимиты на проект
+> — backlog (D-16).
 
 Смена AI-провайдера/моделей — DOC-011; смена embedding-модели запускает переиндексацию (DOC-012 §5).
 

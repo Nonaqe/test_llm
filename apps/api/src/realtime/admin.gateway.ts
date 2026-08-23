@@ -50,6 +50,27 @@ export class AdminGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {}
 
   async handleConnection(client: AdminClient): Promise<void> {
+    // Origin-check (аудит IR-059): cookie-аутентификация делает сокет целью
+    // кросс-сайтовых подключений. Панель всегда same-origin (prod) либо
+    // localhost в dev — чужой Origin отключается до аутентификации.
+    const origin = client.handshake.headers.origin;
+    if (origin) {
+      let originHost = "";
+      try {
+        originHost = new URL(origin).host;
+      } catch {
+        originHost = "";
+      }
+      const host = client.handshake.headers.host ?? "";
+      const devLocalhost =
+        this.env.NODE_ENV !== "production" && /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(originHost);
+      if (originHost !== host && !devLocalhost) {
+        this.logger.warn({ origin, host }, "admin ws: чужой Origin отклонён");
+        client.disconnect(true);
+        return;
+      }
+    }
+
     // Готовность principal оформлена обещанием на клиенте: подписки могут прийти
     // раньше завершения загрузки пользователя из БД — они дожидаются его сами.
     client.data.principalReady = (async (): Promise<void> => {

@@ -58,6 +58,10 @@ export class UniChatWidgetElement extends HTMLElement {
   /** Операторы онлайн у проекта (presence:operators — docs/13 §5) */
   private operatorsOnline = false;
   private operatorTypingTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Блокировка отправки при 429 (retry_after_s) */
+  private rateLimitTimer: ReturnType<typeof setTimeout> | null = null;
+  /** «Посетитель печатает» авто-stop (замыкание buildDom → поле для destroy) */
+  private typingStopTimer: ReturnType<typeof setTimeout> | null = null;
 
   // DOM-ссылки
   private refs: {
@@ -150,12 +154,13 @@ export class UniChatWidgetElement extends HTMLElement {
         void this.handleSend();
       }
     });
-    let typingStopTimer: ReturnType<typeof setTimeout> | null = null;
     input.addEventListener("input", () => {
       if (!this.conversation) return;
       this.socket?.typingStart(this.conversation.id);
-      if (typingStopTimer) clearTimeout(typingStopTimer);
-      typingStopTimer = setTimeout(() => this.socket?.typingStop(this.conversation!.id), 2500);
+      if (this.typingStopTimer) clearTimeout(this.typingStopTimer);
+      this.typingStopTimer = setTimeout(() => {
+        if (this.conversation) this.socket?.typingStop(this.conversation.id);
+      }, 2500);
     });
 
     panel.append(header, list, typing, statusline, form);
@@ -239,6 +244,16 @@ export class UniChatWidgetElement extends HTMLElement {
         this.setDot(false);
         this.startPolling();
       },
+      // Истёк visitor-JWT (VISITOR_TOKEN_INVALID): тихий реконнект-цикл без пользы —
+      // переинициализация получает свежий токен (аудит IR-059)
+      onConnectError: (err) => {
+        if (/VISITOR_TOKEN_INVALID|401/i.test(err.message)) {
+          this.socket?.close();
+          this.socket = null;
+          this.booted = false;
+          void this.boot();
+        }
+      },
     });
   }
 
@@ -270,7 +285,19 @@ export class UniChatWidgetElement extends HTMLElement {
     } catch (err) {
       const e = err as WidgetApiError;
       refs.input.value = text; // не теряем введённое
-      this.setStatus("error", e.code === "RATE_LIMITED" ? new Error(this.strings.rateLimited) : err);
+      if (e.code === "RATE_LIMITED") {
+        // Блокируем отправку на retry_after_s (аудит IR-059: спам продолжался)
+        const details = e.details as { retry_after_s?: number } | undefined;
+        const waitS = Math.min(Math.max(Number(details?.retry_after_s) || 30, 1), 120);
+        refs.send.disabled = true;
+        this.rateLimitTimer = setTimeout(() => {
+          const r = this.refs;
+          if (r) r.send.disabled = false;
+        }, waitS * 1000);
+        this.setStatus("error", new Error(this.strings.rateLimited));
+      } else {
+        this.setStatus("error", err);
+      }
     } finally {
       refs.send.disabled = false;
       refs.input.focus();
@@ -313,6 +340,10 @@ export class UniChatWidgetElement extends HTMLElement {
   private handleState(state: string): void {
     if (state === "WAITING_OPERATOR" || state === "OPERATOR_ACTIVE") {
       this.setStatus("custom", new Error(this.strings.waitingOperator));
+    } else if (state === "AI_ACTIVE" || state === "RESOLVED" || state === "CLOSED") {
+      // Возврат под AI/закрытие: статус «оператор подключается…» снимаем
+      // (раньше зависал навсегда — аудит IR-059)
+      this.setStatus(null);
     }
   }
 
@@ -376,6 +407,11 @@ export class UniChatWidgetElement extends HTMLElement {
     if (!refs) return;
     refs.list.textContent = "";
     this.liveBubble = null; // список перестроен — live-пузырь более не валиден
+    // Локальное приветствие рендерится частью списка, иначе стирается
+    // первым сообщением/кэтч-апом (аудит IR-059)
+    if (this.messages.size === 0 && this.config?.greeting) {
+      this.appendLocalGreeting(this.config.greeting);
+    }
     const sorted = [...this.messages.values()].sort((a, b) => a.seq - b.seq);
     for (const m of sorted) {
       const row = document.createElement("div");
@@ -482,6 +518,10 @@ export class UniChatWidgetElement extends HTMLElement {
     this.stopPolling();
     if (this.operatorTypingTimer) clearTimeout(this.operatorTypingTimer);
     this.operatorTypingTimer = null;
+    if (this.rateLimitTimer) clearTimeout(this.rateLimitTimer);
+    this.rateLimitTimer = null;
+    if (this.typingStopTimer) clearTimeout(this.typingStopTimer);
+    this.typingStopTimer = null;
     this.socket?.close();
     this.socket = null;
     this.messages.clear();
