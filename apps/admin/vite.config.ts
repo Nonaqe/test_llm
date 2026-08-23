@@ -1,7 +1,12 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
+// Прод-сборка живёт под /admin (api раздаёт статику из ADMIN_STATIC_DIR —
+// реаудит RA-I-2); dev по-прежнему на корне :5173.
+const base = process.env.ADMIN_BASE_PATH ?? "/";
+
 export default defineConfig({
+  base,
   plugins: [react()],
   server: {
     port: 5173,

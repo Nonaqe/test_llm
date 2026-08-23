@@ -25,3 +25,9 @@ tmp/
 demo/.pgdata/
 uploads/
 desktop.ini
+
+# Дампы БД и архивы uploads от update.sh/BackupService — персональные данные
+# диалогов; случайный git add -A не должен их закоммитить (реаудит RA-I-10)
+backups/
+*.dump
+*uploads*.tar.gz

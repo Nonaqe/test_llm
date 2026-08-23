@@ -2,11 +2,29 @@ import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import { Logger } from "nestjs-pino";
+import * as path from "node:path";
+import type { NextFunction, Request, Response } from "express";
 import { AppModule } from "./app.module";
 import { loadEnv } from "./config/env";
 import { configureApp } from "./common/app-setup";
 import { RedisIoAdapter } from "./realtime/redis-io.adapter";
 import { registerRedisPubClient } from "./realtime/redis-clients";
+
+/**
+ * Раздача SPA-админки из образа (реаудит RA-I-2): раньше прод-стек физически
+ * не отдавал /admin — install.sh отправлял на /wizard, а сервил его только
+ * dev-Vite. Регистрируется ПОСЛЕ app.init(): статика и fallback идут в конце
+ * цепочки express и не затеняют API-маршруты.
+ */
+function serveAdmin(app: NestExpressApplication, adminDir: string): void {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+  const express = require("express") as typeof import("express");
+  app.use("/admin", express.static(adminDir, { index: "index.html" }));
+  app.use("/admin", (req: Request, res: Response, next: NextFunction) => {
+    if (req.method !== "GET" && req.method !== "HEAD") return next();
+    res.sendFile(path.join(adminDir, "index.html"));
+  });
+}
 
 async function bootstrap(): Promise<void> {
   const env = loadEnv();
@@ -21,6 +39,13 @@ async function bootstrap(): Promise<void> {
   }
 
   configureApp(app, { developmentOrigin: env.NODE_ENV === "development" });
+
+  // Статика админки регистрируется ДО init(): middleware из app.use попадает
+  // в стек express раньше роутеров Nest и не получает 404 от них. Маунт строго
+  // на префикс /admin — API (/api,/widget,/health,/socket.io) не пересекается.
+  if (env.ADMIN_STATIC_DIR) {
+    serveAdmin(app, env.ADMIN_STATIC_DIR);
+  }
 
   // Миграции применяются при старте api (docs/16, docs/20 §3): раннер
   // идемпотентен (schema_migrations + advisory lock) — повторный старт и
@@ -46,7 +71,11 @@ async function bootstrap(): Promise<void> {
   }
 
   await app.listen(env.PORT);
+
   const logger = app.get(Logger);
+  if (env.ADMIN_STATIC_DIR) {
+    logger.log(`admin SPA served from ${env.ADMIN_STATIC_DIR} at /admin`);
+  }
   logger.log(`chat-api listening on :${env.PORT} (v${env.APP_VERSION}, ${env.NODE_ENV})`);
 }
 

@@ -52,6 +52,8 @@ related:
 | `BACKUP_AT` | — | Локальное время ночного бэкапа HH:MM | 03:00 |
 | `ALERT_EMAIL` | — | Email алерта при ошибке бэкапа (не задан — SMTP-алерты выключены) | — |
 | `APP_VERSION` | — | Версия сборки (health, диагностика) | 0.1.0 |
+| `ADMIN_STATIC_DIR` | — | Каталог собранной SPA-админки: задан в образе (`/app/admin-static`) → api раздаёт `/admin` со SPA-fallback; не задан (dev) — админку отдаёт Vite :5173 (реаудит RA-I-2) | — |
+| `WIDGET_JS_PATH` | — | Путь к бандлу виджета, который отдаёт `GET /widget.js` (в образе `/app/apps/widget/dist/widget.js`); вне схемы env — читается контроллером напрямую (реаудит RA-I-13) | `apps/widget/dist/widget.js` |
 | `BACKUP_S3_ENDPOINT/_KEY/_SECRET/_BUCKET` | — | Удалённый бэкап (опция; backlog D-16) | — |
 
 > Удалено из схемы по итогам аудита IR-059: `APP_URL` и `TRUST_PROXY`-«обязательна» не

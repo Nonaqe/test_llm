@@ -28,6 +28,10 @@ export const EnvSchema = z.object({
   /** Число доверенных прокси-хопов перед api (X-Forwarded-For → req.ip). docs/17 §2.
    *  За Caddy в проде = 1; не задано — прямое подключение, req.ip = сокету. */
   TRUST_PROXY: z.coerce.number().int().min(0).max(10).optional(),
+  /** Каталог собранной SPA-админки: задан в образе (/app/admin-static) →
+   *  api раздаёт /admin со SPA-fallback на index.html (реаудит RA-I-2).
+   *  Не задан (dev) — админку отдаёт Vite :5173. */
+  ADMIN_STATIC_DIR: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

@@ -82,10 +82,20 @@ services:
       - unichat_redisdata:/data
     restart: unless-stopped
 
+# Фиксированные имена volume (реаудит RA-I-1): без name: compose префиксует
+# их именем проекта каталога (chat_bot_ii_unichat_uploads), а update.sh/restore.sh
+# обращаются по голому имени — Docker молча создавал ПУСТОЙ volume и бэкап
+# uploads архивировал пустоту с exit 0.
 volumes:
-  unichat_pgdata: {}
-  unichat_redisdata: {}
-  unichat_uploads: {}
-  unichat_backups: {}
-  unichat_caddy_data: {}
-  unichat_caddy_config: {}
+  unichat_pgdata:
+    name: unichat_pgdata
+  unichat_redisdata:
+    name: unichat_redisdata
+  unichat_uploads:
+    name: unichat_uploads
+  unichat_backups:
+    name: unichat_backups
+  unichat_caddy_data:
+    name: unichat_caddy_data
+  unichat_caddy_config:
+    name: unichat_caddy_config

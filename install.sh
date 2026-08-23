@@ -92,7 +92,7 @@ cat <<EOF
  SETUP-токен:      ${SETUP_TOKEN}
 
  Дальше (≤5 минут, docs/22):
-   1) Откройте https://${CHAT_DOMAIN}/wizard
+   1) Откройте https://${CHAT_DOMAIN}/admin/wizard
    2) Введите SETUP-токен → создайте администратора
    3) Проект → сайт → AI-провайдер → знания → сниппет
 

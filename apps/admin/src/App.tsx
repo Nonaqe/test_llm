@@ -47,7 +47,8 @@ export function App() {
     <I18nProvider>
       <AuthProvider>
         <ProjectsProvider>
-          <BrowserRouter>
+          {/* basename из vite base: прод-сборка собирается с ADMIN_BASE_PATH=/admin */}
+          <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/+$/, "") || undefined}>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/wizard" element={<WizardPage />} />
