@@ -378,18 +378,27 @@ function FaqTab({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editQuestion, setEditQuestion] = useState("");
   const [editAnswer, setEditAnswer] = useState("");
+  // Ошибки CRUD раньше глотались (только 401-логаут) — показываем как остальные
+  // формы страницы (аудит IR-059)
+  const [error, setError] = useState("");
+
+  const fail = (err: unknown): void => {
+    auth.onApiError(err);
+    setError(describeApiError(err));
+  };
 
   const add = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     if (busy || question.trim() === "" || answer.trim() === "") return;
     setBusy(true);
+    setError("");
     try {
       await api.addFaq(projectId, question.trim(), answer.trim());
       setQuestion("");
       setAnswer("");
       onChanged();
     } catch (err) {
-      auth.onApiError(err);
+      fail(err);
     } finally {
       setBusy(false);
     }
@@ -404,7 +413,7 @@ function FaqTab({
       setEditingId(null);
       onChanged();
     } catch (err) {
-      auth.onApiError(err);
+      fail(err);
     }
   };
 
@@ -413,7 +422,7 @@ function FaqTab({
       await api.updateFaq(projectId, faq.id, { enabled: !faq.enabled });
       onChanged();
     } catch (err) {
-      auth.onApiError(err);
+      fail(err);
     }
   };
 
@@ -435,6 +444,7 @@ function FaqTab({
         <button className="btn primary" type="submit" disabled={busy || question.trim() === "" || answer.trim() === ""}>
           {t("kb.faqAdd")}
         </button>
+        {error !== "" && <p className="error-text">{error}</p>}
       </form>
 
       {faqs.length === 0 && <p className="muted pad">{t("kb.faqEmpty")}</p>}

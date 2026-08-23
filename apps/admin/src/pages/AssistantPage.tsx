@@ -54,6 +54,13 @@ function defaultParams(type: EscalationRuleTypeValue): Record<string, unknown> {
   }
 }
 
+/** Число из input с клампом в диапазон; NaN/пусто → min */
+function clampNum(raw: string, min: number, max: number): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return min;
+  return Math.min(max, Math.max(min, n));
+}
+
 export function AssistantPage() {
   const { t } = useT();
   const auth = useAuth();
@@ -194,7 +201,14 @@ export function AssistantPage() {
             <legend>retrieval_settings</legend>
             <div className="form-grid">
               <Field label={t("assistant.topK")}>
-                <input type="number" min={1} max={20} value={topK} onChange={(e) => setTopK(Number(e.target.value))} />
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={topK}
+                  // Кламп: Number('') = 0 уходил на сервер и давал 422 (аудит IR-059)
+                  onChange={(e) => setTopK(clampNum(e.target.value, 1, 20))}
+                />
               </Field>
               <Field label={t("assistant.scoreThreshold")}>
                 <input
@@ -203,7 +217,7 @@ export function AssistantPage() {
                   max={1}
                   step={0.05}
                   value={scoreThreshold}
-                  onChange={(e) => setScoreThreshold(Number(e.target.value))}
+                  onChange={(e) => setScoreThreshold(clampNum(e.target.value, 0, 1))}
                 />
               </Field>
               <Field label={t("assistant.historyDepth")}>
@@ -212,7 +226,7 @@ export function AssistantPage() {
                   min={0}
                   max={50}
                   value={historyDepth}
-                  onChange={(e) => setHistoryDepth(Number(e.target.value))}
+                  onChange={(e) => setHistoryDepth(clampNum(e.target.value, 0, 50))}
                 />
               </Field>
             </div>

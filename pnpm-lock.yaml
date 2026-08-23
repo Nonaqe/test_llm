@@ -32,9 +32,6 @@ importers:
       '@uni-chat/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@uni-chat/ui':
-        specifier: workspace:*
-        version: link:../../packages/ui
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -207,21 +204,6 @@ importers:
         specifier: ^6.0.3
         version: 6.4.3(@types/node@22.20.1)(tsx@4.23.12)
 
-  demo:
-    dependencies:
-      '@electric-sql/pglite':
-        specifier: ^0.5.5
-        version: 0.5.5
-      '@electric-sql/pglite-pgvector':
-        specifier: 0.0.6
-        version: 0.0.6(@electric-sql/pglite@0.5.5)
-      '@electric-sql/pglite-socket':
-        specifier: ^0.2.8
-        version: 0.2.8(@electric-sql/pglite-age@0.0.6(@electric-sql/pglite@0.5.5))(@electric-sql/pglite-pg_hashids@0.0.6(@electric-sql/pglite@0.5.5))(@electric-sql/pglite-pg_ivm@0.0.6(@electric-sql/pglite@0.5.5))(@electric-sql/pglite-pg_textsearch@0.0.7(@electric-sql/pglite@0.5.5))(@electric-sql/pglite-pg_uuidv7@0.0.6(@electric-sql/pglite@0.5.5))(@electric-sql/pglite-pgtap@0.0.6(@electric-sql/pglite@0.5.5))(@electric-sql/pglite-pgvector@0.0.6(@electric-sql/pglite@0.5.5))(@electric-sql/pglite@0.5.5)
-      pg:
-        specifier: 8.11.3
-        version: 8.11.3
-
   packages/core:
     dependencies:
       '@uni-chat/shared':
@@ -343,57 +325,6 @@ packages:
 
   '@borewit/text-codec@0.2.2':
     resolution: {integrity: sha512-DDaRehssg1aNrH4+2hnj1B7vnUGEjU6OIlyRdkMd0aUdIUvKXrJfXsy8LVtXAy7DRvYVluWbMspsRhz2lcW0mQ==}
-
-  '@electric-sql/pglite-age@0.0.6':
-    resolution: {integrity: sha512-cnj+KxJUgx6WdwFgIbu2wQSu5NKNOf1TNfLAwVTHZZGkTTyA8FW8FrFZ06jKUkKoW7Fad8X0O4FPb/I+u5n5Rw==}
-    peerDependencies:
-      '@electric-sql/pglite': 0.5.5
-
-  '@electric-sql/pglite-pg_hashids@0.0.6':
-    resolution: {integrity: sha512-723NvdqXz70rTjC5OKQHmmNNogTcZxPLAJf0NRDanz3zz77nBOCSlTL/UKkah90UVk5kqnbrwIcHqDVGmmONDA==}
-    peerDependencies:
-      '@electric-sql/pglite': 0.5.5
-
-  '@electric-sql/pglite-pg_ivm@0.0.6':
-    resolution: {integrity: sha512-LroA6kGyIEeB1/P7RbAaDHDCgu6+0scXzNe4ahN73f/PfexVN4h1k7HXOUS2su7tAHVMOBRlfenaWl3J/KhSmg==}
-    peerDependencies:
-      '@electric-sql/pglite': 0.5.5
-
-  '@electric-sql/pglite-pg_textsearch@0.0.7':
-    resolution: {integrity: sha512-gBWaCxBcFPrmecgnycTXVJrAM39qEsXqZEuQZg1itlnIti1233htFYkOg9xp+FFE8R0Z7XmjbSJxjFoG60LD7w==}
-    peerDependencies:
-      '@electric-sql/pglite': 0.5.5
-
-  '@electric-sql/pglite-pg_uuidv7@0.0.6':
-    resolution: {integrity: sha512-ffQARR67C9gFIhoaqSF/J0IUM6STJASrmcRvhlOokv414WBkl+wiNHBslw7hc3tYSZmg41Y7L1tjxNPNZn1wPA==}
-    peerDependencies:
-      '@electric-sql/pglite': 0.5.5
-
-  '@electric-sql/pglite-pgtap@0.0.6':
-    resolution: {integrity: sha512-2Xn9xevILlNHTAeLZJnrB7DtOoB2qEiXm+tPaP0cm4n1a9zsAb4HQBRgsQhWKF7PJn9qMGJYFMuWWoMaxLTXwA==}
-    peerDependencies:
-      '@electric-sql/pglite': 0.5.5
-
-  '@electric-sql/pglite-pgvector@0.0.6':
-    resolution: {integrity: sha512-KiPeiS/BMmjO71igzgexJAu5aPb3Y2yUjNTSMdti4ZL3zlqZFl4eLgbzLBGyG5Cxr9xFwYFmHh61ZTq6w6hUJA==}
-    peerDependencies:
-      '@electric-sql/pglite': 0.5.5
-
-  '@electric-sql/pglite-socket@0.2.8':
-    resolution: {integrity: sha512-s/hDC799oT1YLrQoyfiBKqwFcIn0m6OUEuU2ENdzr3uxW5rJBM73hpQeiBmSs+pqDD2A3PH4a8839ExqoROVmQ==}
-    hasBin: true
-    peerDependencies:
-      '@electric-sql/pglite': 0.5.5
-      '@electric-sql/pglite-age': 0.0.6
-      '@electric-sql/pglite-pg_hashids': 0.0.6
-      '@electric-sql/pglite-pg_ivm': 0.0.6
-      '@electric-sql/pglite-pg_textsearch': 0.0.7
-      '@electric-sql/pglite-pg_uuidv7': 0.0.6
-      '@electric-sql/pglite-pgtap': 0.0.6
-      '@electric-sql/pglite-pgvector': 0.0.6
-
-  '@electric-sql/pglite@0.5.5':
-    resolution: {integrity: sha512-QeZ+oB7QaU4EJj2awrB8hwFZ5TXxLRBQ9Gfq0dQauYDdWsRtuWRCERgtri35vRfL07KQHlVlc/4Qxvn7a5AXeA==}
 
   '@esbuild/aix-ppc64@0.21.5':
     resolution: {integrity: sha512-1SDgH6ZSPTlggy1yI6+Dbkiz8xzpHJEVAlF/AM1tHPLsf5STom9rwtjE4hKAF20FfXXNTFqEYXyJNWh1GiZedQ==}
@@ -1763,10 +1694,6 @@ packages:
   buffer-from@1.1.2:
     resolution: {integrity: sha512-E+XQCRwSbaaiChtv6k6Dwgc+bx+Bs6vuKJHHl5kox/BaKbhiXzqQOwK4cO22yElGp2OCmjwVhT3HmxgyPGnJfQ==}
 
-  buffer-writer@2.0.0:
-    resolution: {integrity: sha512-a7ZpuTZU1TRtnwyCNW3I5dc0wWNC3VR9S++Ewyk2HHZdrO3CQJqSpd+95Us590V6AL7JqUAH2IwZ/398PmNFgw==}
-    engines: {node: '>=4'}
-
   busboy@1.6.0:
     resolution: {integrity: sha512-8SFQbg/0hQ9xy3UNTB0YEnsNBbWfhf7RtnzpL7TkBiTBRfrQ9Fxcnz7VJsleJpyp6rVLvXiuORqjlHi5q+PYuA==}
     engines: {node: '>=10.16.0'}
@@ -2564,9 +2491,6 @@ packages:
     resolution: {integrity: sha512-LaNjtRWUBY++zB5nE/NwcaoMylSPk+S+ZHNB1TzdbMJMny6dynpAGt7X/tl/QYq3TIeE6nxHppbo2LGymrG5Pw==}
     engines: {node: '>=10'}
 
-  packet-reader@1.0.0:
-    resolution: {integrity: sha512-HAKu/fG3HpHFO0AA8WE8q2g+gBJaZ9MG7fcKk+IJPLTGAD6Psw4443l+9DGRbOIh3/aXr7Phy0TjilYivJo5XQ==}
-
   pako@1.0.11:
     resolution: {integrity: sha512-4hLB8Py4zZce5s4yd9XzopqwVv/yGNhV1Bl8NTmCq1763HeK2+EwVTv+leGeL13Dnh2wfbqowVPXCIO0z4taYw==}
 
@@ -2631,15 +2555,6 @@ packages:
   pg-types@2.2.0:
     resolution: {integrity: sha512-qTAAlrEsl8s4OiEQY69wDvcMIdQN6wdz5ojQiOy6YRMuynxenON0O5oCpJI6lshc6scgAY8qvJ2On/p+CXY0GA==}
     engines: {node: '>=4'}
-
-  pg@8.11.3:
-    resolution: {integrity: sha512-+9iuvG8QfaaUrrph+kpF24cXkH1YOOUeArRNYIxq1viYHZagBxrTno7cecY1Fa44tJeZvaoG+Djpkc3JwehN5g==}
-    engines: {node: '>= 8.0.0'}
-    peerDependencies:
-      pg-native: '>=3.0.1'
-    peerDependenciesMeta:
-      pg-native:
-        optional: true
 
   pg@8.23.0:
     resolution: {integrity: sha512-Ip2EQCngowJLGOfCwkFhPXU7/ljlhn6Rxlmy4XYfL2Y+vyRM59+8uR2xqRWKdYmbXmxCFOAmKxBuSUCdF34qLg==}
@@ -3440,47 +3355,6 @@ snapshots:
       '@babel/helper-validator-identifier': 7.29.7
 
   '@borewit/text-codec@0.2.2': {}
-
-  '@electric-sql/pglite-age@0.0.6(@electric-sql/pglite@0.5.5)':
-    dependencies:
-      '@electric-sql/pglite': 0.5.5
-
-  '@electric-sql/pglite-pg_hashids@0.0.6(@electric-sql/pglite@0.5.5)':
-    dependencies:
-      '@electric-sql/pglite': 0.5.5
-
-  '@electric-sql/pglite-pg_ivm@0.0.6(@electric-sql/pglite@0.5.5)':
-    dependencies:
-      '@electric-sql/pglite': 0.5.5
-
-  '@electric-sql/pglite-pg_textsearch@0.0.7(@electric-sql/pglite@0.5.5)':
-    dependencies:
-      '@electric-sql/pglite': 0.5.5
-
-  '@electric-sql/pglite-pg_uuidv7@0.0.6(@electric-sql/pglite@0.5.5)':
-    dependencies:
-      '@electric-sql/pglite': 0.5.5
-
-  '@electric-sql/pglite-pgtap@0.0.6(@electric-sql/pglite@0.5.5)':
-    dependencies:
-      '@electric-sql/pglite': 0.5.5
-
-  '@electric-sql/pglite-pgvector@0.0.6(@electric-sql/pglite@0.5.5)':
-    dependencies:
-      '@electric-sql/pglite': 0.5.5
-
-  '@electric-sql/pglite-socket@0.2.8(@electric-sql/pglite-age@0.0.6(@electric-sql/pglite@0.5.5))(@electric-sql/pglite-pg_hashids@0.0.6(@electric-sql/pglite@0.5.5))(@electric-sql/pglite-pg_ivm@0.0.6(@electric-sql/pglite@0.5.5))(@electric-sql/pglite-pg_textsearch@0.0.7(@electric-sql/pglite@0.5.5))(@electric-sql/pglite-pg_uuidv7@0.0.6(@electric-sql/pglite@0.5.5))(@electric-sql/pglite-pgtap@0.0.6(@electric-sql/pglite@0.5.5))(@electric-sql/pglite-pgvector@0.0.6(@electric-sql/pglite@0.5.5))(@electric-sql/pglite@0.5.5)':
-    dependencies:
-      '@electric-sql/pglite': 0.5.5
-      '@electric-sql/pglite-age': 0.0.6(@electric-sql/pglite@0.5.5)
-      '@electric-sql/pglite-pg_hashids': 0.0.6(@electric-sql/pglite@0.5.5)
-      '@electric-sql/pglite-pg_ivm': 0.0.6(@electric-sql/pglite@0.5.5)
-      '@electric-sql/pglite-pg_textsearch': 0.0.7(@electric-sql/pglite@0.5.5)
-      '@electric-sql/pglite-pg_uuidv7': 0.0.6(@electric-sql/pglite@0.5.5)
-      '@electric-sql/pglite-pgtap': 0.0.6(@electric-sql/pglite@0.5.5)
-      '@electric-sql/pglite-pgvector': 0.0.6(@electric-sql/pglite@0.5.5)
-
-  '@electric-sql/pglite@0.5.5': {}
 
   '@esbuild/aix-ppc64@0.21.5':
     optional: true
@@ -4572,8 +4446,6 @@ snapshots:
 
   buffer-from@1.1.2: {}
 
-  buffer-writer@2.0.0: {}
-
   busboy@1.6.0:
     dependencies:
       streamsearch: 1.1.0
@@ -5436,8 +5308,6 @@ snapshots:
     dependencies:
       p-limit: 3.1.0
 
-  packet-reader@1.0.0: {}
-
   pako@1.0.11: {}
 
   parent-module@1.0.1:
@@ -5473,10 +5343,6 @@ snapshots:
 
   pg-int8@1.0.1: {}
 
-  pg-pool@3.14.0(pg@8.11.3):
-    dependencies:
-      pg: 8.11.3
-
   pg-pool@3.14.0(pg@8.23.0):
     dependencies:
       pg: 8.23.0
@@ -5490,18 +5356,6 @@ snapshots:
       postgres-bytea: 1.0.1
       postgres-date: 1.0.7
       postgres-interval: 1.2.0
-
-  pg@8.11.3:
-    dependencies:
-      buffer-writer: 2.0.0
-      packet-reader: 1.0.0
-      pg-connection-string: 2.14.0
-      pg-pool: 3.14.0(pg@8.11.3)
-      pg-protocol: 1.16.0
-      pg-types: 2.2.0
-      pgpass: 1.0.5
-    optionalDependencies:
-      pg-cloudflare: 1.4.0
 
   pg@8.23.0:
     dependencies:

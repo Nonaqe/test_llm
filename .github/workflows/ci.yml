@@ -5,9 +5,19 @@ on:
     branches: [main]
   pull_request:
 
+# Аудит IR-059: параллельные прогоны одной ветки отменяют друг друга,
+# зависший шаг убивается по таймауту, права минимальны
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   ci:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -57,7 +67,8 @@ jobs:
           DATABASE_URL: postgres://unichat:unichat@localhost:5432/unichat
 
       - name: E2E Phase 1-5 (auth/RBAC/settings, widget/realtime, AI/RAG, эскалация, sites/analytics против реальной БД)
-        run: pnpm --filter @uni-chat/api test
+        # только e2e-глоб: юниты уже прогнаны шагом выше (двойной прогон — аудит IR-059)
+        run: pnpm --filter @uni-chat/api test:e2e
         env:
           DATABASE_URL: postgres://unichat:unichat@localhost:5432/unichat
           APP_SECRET: ci-app-secret-0123456789

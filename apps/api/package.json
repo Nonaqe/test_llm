@@ -7,6 +7,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
+    "test:e2e": "vitest run src/e2e",
     "dev": "node --watch dist/main.js",
     "dev:watch": "tsc -p tsconfig.json --watch",
     "dev:migrate": "tsx src/migrate.ts",

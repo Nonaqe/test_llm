@@ -1,49 +1,9 @@
 /**
- * Форматирование и человекочитаемые подписи для панели оператора (docs/13 §2–3).
+ * Форматирование для панели оператора (docs/13 §2–3).
+ * Подписи состояний/причин/ролей живут в i18n (state.*, reason.*, role.*) —
+ * дублирующие словари удалены по итогам аудита IR-059.
  */
 import { ApiError } from "./api/client";
-import type {
-  ConversationStateValue,
-  HandoffReasonValue,
-  MessageRoleValue,
-} from "./api/types";
-
-export const STATE_LABELS: Record<ConversationStateValue, string> = {
-  NEW: "Новый",
-  AI_ACTIVE: "AI отвечает",
-  WAITING_OPERATOR: "Ждёт оператора",
-  OPERATOR_ACTIVE: "У оператора",
-  RESOLVED: "Решён",
-  CLOSED: "Закрыт",
-};
-
-/** Подпись состояния; неизвестное значение сервера показываем как есть. */
-export function stateLabel(state: string): string {
-  return STATE_LABELS[state as ConversationStateValue] ?? state;
-}
-
-export const REASON_LABELS: Record<HandoffReasonValue, string> = {
-  explicit_request: "Просил оператора",
-  low_confidence: "Низкая уверенность AI",
-  keyword: "Ключевое слово",
-  intent: "Интент",
-  complaint: "Жалоба",
-  no_answer: "AI не смог ответить",
-  manual: "Вручную",
-};
-
-/** Человекочитаемая причина handoff (docs/13 §2). */
-export function reasonLabel(reason: string): string {
-  return REASON_LABELS[reason as HandoffReasonValue] ?? reason;
-}
-
-export const ROLE_LABELS: Record<MessageRoleValue, string> = {
-  visitor: "Посетитель",
-  assistant: "AI",
-  operator: "Оператор",
-  system: "Система",
-  note: "Внутренняя заметка",
-};
 
 /** Время последнего сообщения: HH:MM для сегодня, ДД.ММ HH:MM иначе. */
 export function formatTime(iso: string | null | undefined): string {

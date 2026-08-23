@@ -27,8 +27,7 @@ import { HandoffService } from "../conversations/handoff.service";
 import { matchOrigin } from "./origin";
 import { signVisitorToken } from "./visitor-tokens";
 import { toMessageDto } from "./message-dto";
-
-export { toMessageDto };
+// (реэкспорт toMessageDto удалён — аудит IR-059: все импортируют из ./message-dto)
 import {
   ConversationsRepo,
   HandoffsRepo,

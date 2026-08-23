@@ -16,9 +16,15 @@ import { api, useAuth } from "../state/auth";
 import { useProjectRouteId } from "../components/Layout";
 import { ConfirmDialog, CopyButton, ErrorText, Field, Modal } from "../components/ui";
 
-/** Сниппет установки (docs/10 §1): домен сервера берём из адреса админки. */
+/**
+ * Сниппет установки (docs/10 §1). Origin API берётся из VITE_API_ORIGIN,
+ * иначе — из адреса админки. В dev-прокси (:5173) /widget.js не проксируется —
+ * без явной переменной сниппет вёл на 404 (аудит IR-059).
+ */
 export function buildSnippet(publicKey: string): string {
-  return `<script src="${window.location.origin}/widget.js" data-chat-key="${publicKey}" defer></script>`;
+  const apiOrigin =
+    (import.meta.env?.VITE_API_ORIGIN as string | undefined) ?? window.location.origin;
+  return `<script src="${apiOrigin}/widget.js" data-chat-key="${publicKey}" defer></script>`;
 }
 
 interface SiteDraft {

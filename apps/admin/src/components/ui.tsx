@@ -28,9 +28,7 @@ export function ErrorText({ text }: { text: string | null }) {
   return <p className="error-text">{text}</p>;
 }
 
-export function EmptyState({ text }: { text: string }) {
-  return <p className="muted center pad">{text}</p>;
-}
+// EmptyState удалён (аудит IR-059): ни один экран его не использовал
 
 /**
  * Модалка на портале в body: клик по подложке и Esc закрывают.

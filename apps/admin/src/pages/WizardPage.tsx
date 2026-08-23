@@ -405,6 +405,12 @@ function AiStep({ onDone, onSkip }: { onDone: () => void; onSkip: () => void }) 
   };
 
   const save = async (): Promise<void> => {
+    // Пустые base_url/chat_model раньше писались в настройки как "" и
+    // вскрывались только позже через «Проверить соединение» (аудит IR-059)
+    if (baseUrl.trim() === "" || chatModel.trim() === "") {
+      setError(t("set.ai.required"));
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
