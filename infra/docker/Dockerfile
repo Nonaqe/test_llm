@@ -7,13 +7,20 @@ WORKDIR /app
 RUN corepack enable
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY apps/api/package.json apps/api/
+COPY apps/widget/package.json apps/widget/
 COPY packages/shared/package.json packages/shared/
 COPY packages/core/package.json packages/core/
 RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY tsconfig.base.json turbo.json ./
 COPY packages packages
 COPY apps/api apps/api
-RUN pnpm turbo run build --filter=@uni-chat/api
+# widget: манифест уже скопирован выше — исходники для сборки vite lib
+COPY apps/widget/src apps/widget/src
+COPY apps/widget/index.html apps/widget/index.html
+COPY apps/widget/vite.config.ts apps/widget/vite.config.ts
+COPY apps/widget/tsconfig.json apps/widget/tsconfig.json
+# api + виджет: /widget.js отдаётся api из apps/widget/dist (сниппет docs/08)
+RUN pnpm turbo run build --filter=@uni-chat/api --filter=@uni-chat/widget
 
 FROM node:20-bookworm-slim AS runtime
 ENV NODE_ENV=production
@@ -30,6 +37,8 @@ COPY --from=build /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=build /app/packages ./packages
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/api/migrations ./apps/api/migrations
+# Бандл виджета: GET /widget.js (widget-js.controller читает apps/widget/dist)
+COPY --from=build /app/apps/widget/dist ./apps/widget/dist
 USER unichat
 EXPOSE 3000
 STOPSIGNAL SIGTERM

@@ -49,7 +49,10 @@ DATABASE_URL=postgres://unichat:${DB_PASSWORD}@postgres:5432/unichat
 REDIS_URL=redis://redis:6379
 APP_SECRET=${APP_SECRET}
 SETUP_TOKEN=${SETUP_TOKEN}
-UPLOADS_DIR=/app/uploads
+# api стоит за Caddy (1 прокси-хоп): req.ip из X-Forwarded-For — иначе
+# throttle-ключи вырождаются в один IP на всех посетителей (docs/17 §2)
+TRUST_PROXY=1
+UPLOAD_DIR=/app/uploads
 BACKUP_DIR=/app/backups
 BACKUP_AT=03:00
 EOF
@@ -61,18 +64,23 @@ export CHAT_DOMAIN ACME_EMAIL
 # --- 3. Подъём ------------------------------------------------------------
 log "Сборка/загрузка образов (${CHAT_VERSION})…"
 $COMPOSE pull --ignore-buildable || true
-$COMPOSE build api worker
+# worker использует тот же образ (image:), своей build-секции у него нет
+$COMPOSE build api
 log "Запуск стека…"
 $COMPOSE up -d
 
 log "Ожидание готовности api…"
+READY=""
 for _ in $(seq 1 60); do
-  if curl -fsS "http://127.0.0.1/health" >/dev/null 2>&1 \
+  # Host-заголовок обязателен: Caddy отвечает 200-пустышкой на незнакомый Host
+  if curl -fsS -H "Host: ${CHAT_DOMAIN}" "http://127.0.0.1/health" >/dev/null 2>&1 \
      || curl -fsSk "https://${CHAT_DOMAIN}/health" >/dev/null 2>&1; then
+    READY=1
     break
   fi
   sleep 5
 done
+[ -n "$READY" ] || die "api не поднялся за 5 минут. Логи: $COMPOSE logs api"
 
 # --- 4. Итог --------------------------------------------------------------
 cat <<EOF

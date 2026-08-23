@@ -1,9 +1,21 @@
-# Caddy — TLS + reverse proxy (docs/16_DEPLOYMENT.md §3).
-# Переменные задаёт installer (.env): CHAT_DOMAIN, ACME_EMAIL.
+# Caddy — TLS + reverse proxy (docs/16_DEPLOYMENT.md §3, docs/15 §3 «Transport»).
+# Переменные задаёт installer (.env) и пробрасывает в контейнер: CHAT_DOMAIN, ACME_EMAIL.
 {
 	email {$ACME_EMAIL}
 }
 
 {$CHAT_DOMAIN} {
+	# Сжатие: бюджет /widget.js (NFR-5) измеряется в gzip — в проде оно должно включаться
+	encode zstd gzip
+
+	header {
+		# HSTS — обещание docs/15 §3; TLS-термация здесь
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
 	reverse_proxy api:3000
 }

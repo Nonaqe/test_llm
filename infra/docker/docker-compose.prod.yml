@@ -13,6 +13,8 @@ services:
       - "443:443"
     environment:
       CHAT_DOMAIN: ${CHAT_DOMAIN}
+      # Интерполяция {$VAR} в Caddyfile идёт по окружению КОНТЕЙНЕРА, а не .env хоста
+      ACME_EMAIL: ${ACME_EMAIL}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - unichat_caddy_data:/data

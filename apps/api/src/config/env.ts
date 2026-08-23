@@ -25,6 +25,9 @@ export const EnvSchema = z.object({
   BACKUP_AT: z.string().regex(/^\d{2}:\d{2}$/, "ожидается HH:MM").default("03:00"),
   /** Куда слать письмо при ошибке бэкапа (не задано — алерты выключены) */
   ALERT_EMAIL: z.string().email().optional(),
+  /** Число доверенных прокси-хопов перед api (X-Forwarded-For → req.ip). docs/17 §2.
+   *  За Caddy в проде = 1; не задано — прямое подключение, req.ip = сокету. */
+  TRUST_PROXY: z.coerce.number().int().min(0).max(10).optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

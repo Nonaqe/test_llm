@@ -1,5 +1,6 @@
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
+import { NestExpressApplication } from "@nestjs/platform-express";
 import { Logger } from "nestjs-pino";
 import { AppModule } from "./app.module";
 import { loadEnv } from "./config/env";
@@ -9,10 +10,28 @@ import { registerRedisPubClient } from "./realtime/redis-clients";
 
 async function bootstrap(): Promise<void> {
   const env = loadEnv();
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
   app.useLogger(app.get(Logger));
   app.enableShutdownHooks();
+
+  // req.ip из X-Forwarded-For за обратным прокси (docs/17 §2): без этого у всех
+  // клиентов за Caddy один IP — вырождаются throttle-ключи и аудит-события
+  if (env.TRUST_PROXY !== undefined) {
+    app.set("trust proxy", env.TRUST_PROXY);
+  }
+
   configureApp(app, { developmentOrigin: env.NODE_ENV === "development" });
+
+  // Миграции применяются при старте api (docs/16, docs/20 §3): раннер
+  // идемпотентен (schema_migrations + advisory lock) — повторный старт и
+  // параллельный worker безопасны; чистая установка получает схему сама.
+  if (env.DATABASE_URL) {
+    const { runMigrations } = await import("./migrate");
+    const applied = await runMigrations(env.DATABASE_URL);
+    app
+      .get(Logger)
+      .log(applied.length ? `migrations applied: ${applied.join(", ")}` : "migrations: up to date");
+  }
 
   // Multi-instance fanout при нескольких api-инстансах (docs/03 §7).
   // Без REDIS_URL работает дефолтный in-memory adapter (один инстанс — MVP-профиль).

@@ -55,8 +55,10 @@ log "Запуск стека…"
 $COMPOSE start api worker
 
 log "Проверка health…"
+# Host-заголовок: без него Caddy отдаёт 200-пустышку на незнакомый Host
+DOMAIN="$(grep -E '^CHAT_DOMAIN=' .env | cut -d= -f2 || true)"
 for _ in $(seq 1 60); do
-  curl -fsS http://127.0.0.1/widget/v1/health >/dev/null 2>&1 && { log "Готово."; exit 0; }
+  curl -fsS -H "Host: ${DOMAIN}" http://127.0.0.1/widget/v1/health >/dev/null 2>&1 && { log "Готово."; exit 0; }
   sleep 5
 done
 die "api не поднялся после восстановления. Логи: $COMPOSE logs api"
